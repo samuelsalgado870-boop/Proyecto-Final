@@ -11,18 +11,44 @@ final class SesionController extends ApiController
 {
     public function crear(array $params = []): never
     {
-        $body = $this->body();
+        $isBrowserPost = strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? '')[0])) === 'application/x-www-form-urlencoded';
+        $body = $isBrowserPost ? $_POST : $this->body();
+        if ($isBrowserPost) {
+            if (!is_string($body['correo'] ?? null) || trim($body['correo']) === ''
+                || !is_string($body['contrasena'] ?? null) || $body['contrasena'] === '') {
+                $this->redirectBrowserLogin('Ingresa tu correo y contraseña.');
+            }
+        }
         $correo = $this->requiredString($body, 'correo', 150);
         $contrasena = $this->requiredString($body, 'contrasena', 255);
         $usuario = (new UsuarioDAO($this->pdo))->autenticar($correo, $contrasena);
         if ($usuario === null) {
+            if ($isBrowserPost) $this->redirectBrowserLogin('Correo o contraseña incorrectos.');
             throw new ApiException(401, 'CREDENTIALS_INVALID', 'Correo o contraseña incorrectos.');
         }
         session_regenerate_id(true);
         $_SESSION['user_id'] = $usuario->getId();
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        if ($isBrowserPost) {
+            $basePath = $this->basePath();
+            header('Location: ' . $basePath . '/app', true, 303);
+            exit;
+        }
         $permissions = (new AutorizacionDAO($this->pdo))->listarPermisos($usuario->getId());
         $this->respond(['usuario' => $usuario, 'permisos' => $permissions, 'csrfToken' => $_SESSION['csrf_token']]);
+    }
+
+    private function redirectBrowserLogin(string $message): never
+    {
+        $_SESSION['login_error'] = $message;
+        header('Location: ' . $this->basePath() . '/login', true, 303);
+        exit;
+    }
+
+    private function basePath(): string
+    {
+        $directory = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/index.php'));
+        return $directory === '/' || $directory === '.' ? '' : rtrim($directory, '/');
     }
 
     public function mostrar(array $params = []): never

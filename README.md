@@ -46,6 +46,12 @@ Las eliminaciones físicas no se ofrecen para operaciones con historial; el esqu
 
 La API usa rutas REST bajo `/api/v1`; Apache reescribe las solicitudes con `public/.htaccess` hacia `public/index.php`. La matriz, payloads, errores y ejemplos `curl` están en [docs/rutas.md](docs/rutas.md).
 
+### Importar la planilla institucional de activos
+
+La carga XLSX conserva las filas fuente de la hoja `Lectura`, incluidas las filas sin placa y las placas repetidas. Antes de cargarla, importa una vez `database/04_planilla_activos_origen.sql` en la base configurada. Luego abre **Reportes y archivos > Importar base XLSX** e inicia la carga desde la aplicación. Se requiere PHP con las extensiones `zip` y `simplexml`; para archivos grandes, configura `upload_max_filesize=100M`, `post_max_size=110M`, `max_execution_time=300` y `max_input_time=300` en el `php.ini` de Apache y reinicia Apache.
+
+La planilla se conserva como fuente para revisión; el sistema no convierte automáticamente sus nombres de centro de costo, ubicación, estados ni responsables en relaciones operativas. Las placas vacías y repetidas se identifican por fila para su conciliación.
+
 ### Vistas
 
 Las vistas del portal y la aplicación están en `view/`; los estilos y la integración JavaScript con el API están en `public/assets/`. Con Apache/XAMPP abre `http://localhost/Proyecto_Final/public/`. El mapa de pantallas, la trazabilidad a requisitos y los tokens visuales aproximados están en [docs/vistas.md](docs/vistas.md).

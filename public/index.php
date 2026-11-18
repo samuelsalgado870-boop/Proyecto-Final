@@ -180,6 +180,8 @@ $routes = [
     ['GET','/api/v1/documentos/(?P<id>\d+)','DocumentoController','descargar','activos.ficha.leer'],
     ['POST','/api/v1/importaciones','ImportacionController','crear','reportes.informe.exportar'],
     ['GET','/api/v1/importaciones/(?P<id>\d+)','ImportacionController','mostrar','reportes.informe.exportar'],
+    ['POST','/api/v1/importaciones-planilla','PlanillaImportacionController','crear','reportes.informe.exportar'],
+    ['GET','/api/v1/importaciones-planilla/(?P<id>\d+)','PlanillaImportacionController','mostrar','reportes.informe.exportar'],
     ['GET','/api/v1/auditoria','AuditoriaController','listar','usuarios.cuenta.administrar'],
 ];
 

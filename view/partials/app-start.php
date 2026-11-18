@@ -16,9 +16,8 @@ $e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | 
 <a class="skip-link" href="#contenido">Saltar al contenido</a>
 <div class="app-layout">
     <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
-        <a class="brand brand--sidebar" href="<?= $e($basePath) ?>/app" aria-label="Gestión de activos, inicio">
-            <span class="brand-mark" aria-hidden="true"><span></span></span>
-            <span class="brand-copy"><strong>Gestión</strong><small>de activos</small></span>
+        <a class="brand brand--sidebar" href="<?= $e($basePath) ?>/app" aria-label="CECAR, inicio">
+            <img class="brand-logo brand-logo--sidebar" src="<?= $e($assetBase) ?>/images/logo-cecar.webp" alt="CECAR - Corporación Universitaria del Caribe">
         </a>
         <p class="sidebar-label">MENÚ PRINCIPAL</p>
         <nav class="side-nav">

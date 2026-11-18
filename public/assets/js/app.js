@@ -756,6 +756,25 @@
             finally { setLoading(form, false); }
         });
         $('[data-load-import]')?.addEventListener('click', () => loadImport($('[data-import-id]').value));
+        $('[data-planilla-import-form]')?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            if (!form.reportValidity()) return;
+            setMessage(form, ''); setLoading(form, true, 'Leyendo planilla…');
+            try {
+                const result = await request('/importaciones-planilla', { method: 'POST', body: new FormData(form) });
+                const idInput = $('[data-planilla-import-id]'); if (idInput) idInput.value = String(result.data.id);
+                setMessage(form, `Carga ${result.data.id}: ${result.data.filasLeidas} filas conservadas, ${result.data.placasUnicas} placas únicas y ${result.data.filasSinPlacaORepetidas} filas para revisión.`, true);
+                notify(`Planilla conservada con estado ${result.data.estado.toLowerCase().replaceAll('_', ' ')}.`);
+                await loadPlanillaImport(result.data.id);
+            } catch (error) { setMessage(form, error.message); }
+            finally { setLoading(form, false); }
+        });
+        $('[data-load-planilla-import]')?.addEventListener('click', () => loadPlanillaImport($('[data-planilla-import-id]').value));
+        $('[data-planilla-import-result]')?.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-planilla-offset]');
+            if (button) loadPlanillaImport($('[data-planilla-import-id]').value, Number(button.dataset.planillaOffset));
+        });
         $('[data-document-form]')?.addEventListener('submit', async (event) => {
             event.preventDefault();
             const form = event.currentTarget;
@@ -963,6 +982,22 @@
             const item = result.data.importacion;
             const details = result.data.detalle || [];
             target.innerHTML = `<div class="import-result"><strong>${escapeHtml(item.nombre_archivo || `Importación #${item.id}`)}</strong><p>${escapeHtml(item.estado)} · ${Number(item.registros_aceptados || 0)} aceptados · ${Number(item.registros_rechazados || 0)} rechazados</p>${details.length ? `<ul>${details.slice(0, 12).map((line) => `<li>Fila ${Number(line.numero_fila)} · ${escapeHtml(line.resultado)}${line.error ? `: ${escapeHtml(line.error)}` : ''}</li>`).join('')}</ul>` : '<small>Sin detalle de filas.</small>'}</div>`;
+        } catch (error) { target.innerHTML = `<div class="form-message" role="alert">${escapeHtml(error.message)}</div>`; }
+    }
+
+    async function loadPlanillaImport(id, offset = 0) {
+        const target = $('[data-planilla-import-result]');
+        if (!target) return;
+        const parsed = Number(id);
+        if (!Number.isInteger(parsed) || parsed < 1) { target.innerHTML = '<div class="form-message" role="alert">Escribe un ID de planilla válido.</div>'; return; }
+        target.innerHTML = '<div class="loading-state"><span class="spinner" aria-hidden="true"></span>Consultando filas fuente…</div>';
+        try {
+            const result = await request(`/importaciones-planilla/${parsed}?offset=${Math.max(0, Math.floor(offset))}`);
+            const rows = result.data.filas || [];
+            const item = result.data.importacion;
+            const pageOffset = Number(result.data.offset);
+            const total = Number(result.data.totalFilasFuente);
+            target.innerHTML = `<div class="import-result"><strong>${escapeHtml(item.nombre_archivo || `Importación #${item.id}`)}</strong><p>${escapeHtml(item.estado)} · ${total} filas fuente · mostrando ${rows.length ? pageOffset + 1 : 0}–${pageOffset + rows.length}</p>${rows.length ? `<ul>${rows.map((row) => `<li>Fila ${Number(row.numero_fila)} · ${escapeHtml(row.placa || 'Sin placa')} · ${escapeHtml(row.nombre_estado || 'Sin estado')} · ${escapeHtml(row.resultado)}${row.observacion ? `: ${escapeHtml(row.observacion)}` : ''}</li>`).join('')}</ul>` : '<small>No hay filas en esta página.</small>'}<div class="inline-form">${pageOffset > 0 ? `<button class="button button--quiet" type="button" data-planilla-offset="${Math.max(0, pageOffset - 20)}">Anterior</button>` : ''}${pageOffset + rows.length < total ? `<button class="button button--quiet" type="button" data-planilla-offset="${pageOffset + 20}">Siguiente</button>` : ''}</div></div>`;
         } catch (error) { target.innerHTML = `<div class="form-message" role="alert">${escapeHtml(error.message)}</div>`; }
     }
 

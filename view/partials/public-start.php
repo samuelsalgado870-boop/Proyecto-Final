@@ -14,10 +14,11 @@ $e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | 
 </head>
 <body class="<?= $e($bodyClass ?? 'public-body') ?>" data-api-base="<?= $e($apiBase) ?>" data-base-path="<?= $e($basePath) ?>">
 <a class="skip-link" href="#contenido">Saltar al contenido</a>
+<?php if (($showPublicHeader ?? true) !== false): ?>
 <header class="public-header">
-    <a class="brand" href="<?= $e($basePath) ?>/" aria-label="Gestión de activos, inicio">
-        <span class="brand-mark" aria-hidden="true"><span></span></span>
-        <span class="brand-copy"><strong>Gestión</strong><small>de activos</small></span>
+    <a class="brand" href="<?= $e($basePath) ?>/" aria-label="CECAR, inicio">
+        <img class="brand-logo brand-logo--header" src="<?= $e($assetBase) ?>/images/logo-cecar.webp" alt="CECAR - Corporación Universitaria del Caribe">
     </a>
     <a class="button button--outline" href="<?= $e($basePath) ?>/login">Ingresar <span aria-hidden="true">→</span></a>
 </header>
+<?php endif; ?>
