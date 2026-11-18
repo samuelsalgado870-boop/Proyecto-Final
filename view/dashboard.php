@@ -1,4 +1,7 @@
-<?php require __DIR__ . '/partials/app-start.php'; ?>
+<?php
+/** @var string $basePath */
+require __DIR__ . '/partials/app-start.php';
+?>
 <div class="dashboard-page">
     <section class="welcome-banner" aria-labelledby="dashboard-welcome">
         <div class="welcome-copy">

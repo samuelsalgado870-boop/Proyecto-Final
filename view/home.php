@@ -1,6 +1,11 @@
-<?php require __DIR__ . '/partials/public-start.php'; ?>
+<?php
+/** @var string $assetBase */
+/** @var string $basePath */
+require __DIR__ . '/partials/public-start.php';
+?>
 <main class="landing" id="contenido">
     <section class="hero" aria-labelledby="hero-title">
+        <img class="landing-logo" src="<?= htmlspecialchars($assetBase, ENT_QUOTES, 'UTF-8') ?>/images/logo-cecar.webp" alt="CECAR - Corporación Universitaria del Caribe">
         <div class="hero-copy">
             <span class="pill pill--light"><span class="status-dot" aria-hidden="true"></span> Nueva plataforma</span>
             <h1 id="hero-title">Toda tu gestión<br><span>de activos</span><br>en un solo lugar</h1>
