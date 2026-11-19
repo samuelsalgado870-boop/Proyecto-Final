@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+/** @var string $pageTitle @var string $assetBase @var string $apiBase @var string $basePath @var string $activePage */
 $e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 <!doctype html>
