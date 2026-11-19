@@ -13,7 +13,7 @@ final class UbicacionController extends ApiController
         $sedeId = isset($_GET['sedeId']) ? filter_var($_GET['sedeId'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) : null;
         if (isset($_GET['sedeId']) && $sedeId === false) throw new ApiException(400, 'QUERY_INVALID', 'sedeId inválido.');
         $dao = new UbicacionDAO($this->pdo);
-        $this->respond($sedeId === null ? $dao->buscarPorCampo('estado', 'ACTIVA') : $dao->buscarPorCampo('sede_id', $sedeId));
+        $this->respond($sedeId === null ? $dao->buscarPorCampo('estado', 'ACTIVA', 500) : $dao->buscarPorCampo('sede_id', $sedeId, 500));
     }
 
     public function crear(array $params = []): never

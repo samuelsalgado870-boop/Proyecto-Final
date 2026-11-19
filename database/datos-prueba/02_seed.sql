@@ -1,5 +1,5 @@
 -- Datos de prueba 100% ficticios para gestion_activos.
--- Importar DESPUÉS de database/01_schema.sql. Este archivo no borra datos.
+-- Importar DESPUÉS de database/base/01_schema.sql. Este archivo no borra datos.
 -- IDs de prueba: 9001-9999. Ejecutarlo solo en una BD vacía o de pruebas.
 USE gestion_activos;
 START TRANSACTION;

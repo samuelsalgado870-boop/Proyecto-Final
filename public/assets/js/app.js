@@ -11,6 +11,7 @@
     let csrfToken = '';
     let activeInventoryId = null;
     let currentReportRows = [];
+    let currentReconciliationRows = [];
     let activeOperationAsset = null;
     const catalogs = { categorias: [], dependencias: [], ubicaciones: [], sedes: [], roles: [] };
 
@@ -29,7 +30,7 @@
         const options = /[T ]\d{2}:\d{2}/.test(rawDate)
             ? { dateStyle: 'medium', timeStyle: 'short' }
             : { dateStyle: 'medium' };
-        return new Intl.DateTimeFormat('es-CO', options).format(date);
+        return new Intl.DateTimeFormat('es-CO', { ...options, timeZone: 'America/Bogota' }).format(date);
     };
     const notify = (message, isError = false) => {
         const region = $('[data-toast-region]');
@@ -171,6 +172,23 @@
         </tr>`).join('');
     }
 
+    function renderSourceAssets(rows, tbody, compact = false) {
+        if (!tbody) return;
+        const colspan = compact ? 5 : 10;
+        if (!rows.length) {
+            tbody.innerHTML = `<tr><td colspan="${colspan}" class="table-placeholder">No se encontraron filas en la planilla oficial.</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = rows.map((row) => {
+            const location = row.ubicacion_fisica || 'Sin ubicación en origen';
+            if (compact) {
+                return `<tr><td><strong>${escapeHtml(row.placa || 'Sin placa')}</strong></td><td>${escapeHtml(row.descripcion || '—')}</td><td>${badge(row.nombre_estado)}</td><td>${escapeHtml(location)}</td><td>${Number(row.numero_fila)}</td></tr>`;
+            }
+            const costCenter = [row.centro_costo, row.nombre_centro_costo].filter(Boolean).join(' · ') || 'Sin centro de costo en origen';
+            return `<tr><td>${row.activo_id ? Number(row.activo_id) : '-'}</td><td>${Number(row.numero_fila)}</td><td><strong>${escapeHtml(row.placa || 'Sin placa')}</strong></td><td>${escapeHtml(row.descripcion || '—')}</td><td>${escapeHtml(row.lote || '—')}</td><td>${badge(row.nombre_estado)}</td><td>${escapeHtml(costCenter)}</td><td>${escapeHtml(location)}</td><td>${escapeHtml(row.resultado || '—')}</td><td><button type="button" class="table-action" data-source-asset-detail="${Number(row.numero_fila)}">Ver detalle</button></td></tr>`;
+        }).join('');
+    }
+
     function fillSelect(select, rows, labelFor, firstLabel) {
         if (!select) return;
         const previous = select.value;
@@ -205,17 +223,20 @@
         const activeDeps = catalogs.dependencias.filter((row) => row.estado === 'ACTIVA');
         const activeSites = catalogs.sedes.filter((row) => row.estado === 'ACTIVA');
         const activeCategories = catalogs.categorias.filter((row) => row.estado === 'ACTIVA');
+        const referenceLabel = (item) => String(item.codigo || '').startsWith('XLSX-')
+            ? `${item.sede_id ? '' : 'Sede por confirmar · '}${item.nombre}`
+            : `${item.codigo} · ${item.nombre}`;
         ['#filter-categoria', '#asset-categoria', '#inventory-category', '#report-category'].forEach((selector) => {
             const select = $(selector);
             if (select) fillSelect(select, activeCategories, (item) => `${item.nombre} (${item.codigo})`, selector === '#asset-categoria' ? 'Selecciona categoría' : selector === '#filter-categoria' ? 'Todas las categorías' : 'Todas');
         });
         ['#asset-dependencia', '#assign-dependency', '#transfer-origin-dependency', '#transfer-destination-dependency', '#inventory-dependency', '#report-dependency', '#dependency-site', '#location-dependency'].forEach((selector) => {
             const select = $(selector);
-            if (select) fillSelect(select, activeDeps, (item) => `${item.codigo} · ${item.nombre}`, select.required ? 'Selecciona dependencia' : selector.includes('transfer') ? 'Sin especificar' : selector === '#inventory-dependency' || selector === '#report-dependency' ? 'Todas / no especificar' : 'Sin dependencia');
+            if (select) fillSelect(select, activeDeps, referenceLabel, select.required ? 'Selecciona dependencia' : selector.includes('transfer') ? 'Sin especificar' : selector === '#inventory-dependency' || selector === '#report-dependency' ? 'Todas / no especificar' : 'Sin dependencia');
         });
         ['#asset-ubicacion', '#assign-location', '#transfer-origin-location', '#transfer-destination-location', '#inventory-location', '#report-location'].forEach((selector) => {
             const select = $(selector);
-            if (select) fillSelect(select, activeLocations, (item) => `${item.codigo} · ${item.nombre}`, select.required ? 'Selecciona ubicación' : selector === '#inventory-location' || selector === '#report-location' ? 'Todas / no especificar' : 'Selecciona ubicación');
+            if (select) fillSelect(select, activeLocations, referenceLabel, select.required ? 'Selecciona ubicación' : selector === '#inventory-location' || selector === '#report-location' ? 'Todas / no especificar' : 'Selecciona ubicación');
         });
         ['#inventory-sede', '#report-site', '#location-site'].forEach((selector) => {
             const select = $(selector);
@@ -231,19 +252,33 @@
     async function bindDashboard() {
         const tbody = $('[data-dashboard-assets]');
         if (!tbody) return;
-        await loadReferenceData();
-        Promise.all([request('/activos?limite=100'), request('/notificaciones?limite=20')]).then(([assetResult, notificationResult]) => {
-            const assets = Array.isArray(assetResult.data) ? assetResult.data : [];
-            const notifications = Array.isArray(notificationResult.data) ? notificationResult.data : [];
+        request('/base-institucional?limite=8').then((assetResult) => {
+            const assets = Array.isArray(assetResult.data?.filas) ? assetResult.data.filas : [];
             const assetStat = $('[data-stat-assets]');
-            const notificationStat = $('[data-stat-notifications]');
-            if (assetStat) assetStat.textContent = String(assets.length);
-            if (notificationStat) notificationStat.textContent = String(notifications.length);
-            renderAssets(assets.slice(0, 8), tbody, false);
+            if (assetStat) assetStat.textContent = String(assetResult.data?.placasUnicas ?? 0);
+            renderSourceAssets(assets, tbody, true);
+            renderDashboardChart(assetResult.data?.estados || []);
         }).catch((error) => {
             renderErrorRow(tbody, 5, error.message, 'Reintentar');
+            const chart = $('[data-dashboard-chart]');
+            if (chart) chart.innerHTML = `<p class="table-placeholder">${escapeHtml(error.message)}</p>`;
             $$('[data-retry]', tbody).forEach((button) => button.addEventListener('click', () => window.location.reload()));
         });
+    }
+
+    function renderDashboardChart(states) {
+        const chart = $('[data-dashboard-chart]');
+        if (!chart) return;
+        if (!Array.isArray(states) || states.length === 0) {
+            chart.innerHTML = '<p class="table-placeholder">No hay datos de estados de origen para graficar.</p>';
+            return;
+        }
+        const max = Math.max(...states.map((item) => Number(item.total) || 0), 1);
+        chart.innerHTML = `<div class="dashboard-chart-rows">${states.map((item, index) => {
+            const value = Number(item.total) || 0;
+            const width = Math.max(value > 0 ? 2 : 0, Math.round(value / max * 100));
+            return `<div class="dashboard-chart-row"><div class="dashboard-chart-label" title="${escapeHtml(item.estado)}">${escapeHtml(item.estado)}</div><div class="dashboard-chart-track" aria-hidden="true"><span class="dashboard-chart-bar dashboard-chart-bar--${index % 5}" style="width:${width}%"></span></div><strong class="dashboard-chart-value">${value.toLocaleString('es-CO')}</strong></div>`;
+        }).join('')}</div>`;
     }
 
     function showAssetDetail(asset) {
@@ -252,7 +287,7 @@
         if (!dialog || !content) return;
         const fields = [
             ['Placa', asset.placa], ['Estado', asset.estado], ['Descripción', asset.descripcion],
-            ['Categoría', categoryName(asset.categoria_id)], ['Serial', asset.serial], ['Marca', asset.marca],
+            ['Categoría', categoryName(asset.categoria_id)], ['Validación CECAR', asset.estado_validacion || 'PENDIENTE'], ['Serial', asset.serial], ['Marca', asset.marca],
             ['Modelo', asset.modelo], ['Ubicación', locationName(asset.ubicacion_id)],
             ['Dependencia', dependencyName(asset.dependencia_id)], ['Registro', formatDate(asset.creado_en)],
         ];
@@ -297,40 +332,41 @@
         const tbody = $('[data-assets-table]');
         if (!form || !tbody) return;
         const count = $('[data-assets-count]');
-        const search = async () => {
+        const pagination = $('[data-source-pagination]');
+        const pageSize = 50;
+        let offset = 0;
+        const search = async (resetOffset = false) => {
+            if (resetOffset) offset = 0;
             const values = formValues(form);
-            tbody.innerHTML = '<tr><td colspan="7"><div class="loading-state"><span class="spinner" aria-hidden="true"></span>Consultando…</div></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10"><div class="loading-state"><span class="spinner" aria-hidden="true"></span>Consultando…</div></td></tr>';
             if (count) count.textContent = 'Consultando…';
             try {
-                let rows;
-                if (values.placa?.trim()) {
-                    try {
-                        const item = await request(`/activos/placa/${encodeURIComponent(values.placa.trim())}`);
-                        rows = [item.data];
-                    } catch (error) {
-                        if (error.status === 404) rows = [];
-                        else throw error;
-                    }
-                } else {
-                    const query = new URLSearchParams({ limite: '100' });
-                    if (values.estado) query.set('estado', values.estado);
-                    if (values.categoriaId) query.set('categoriaId', values.categoriaId);
-                    const result = await request(`/activos?${query.toString()}`);
-                    rows = Array.isArray(result.data) ? result.data : [];
+                const query = new URLSearchParams({ limite: String(pageSize), offset: String(offset) });
+                if (values.q?.trim()) query.set('q', values.q.trim());
+                const result = await request(`/base-institucional?${query.toString()}`);
+                const rows = Array.isArray(result.data?.filas) ? result.data.filas : [];
+                renderSourceAssets(rows, tbody);
+                const total = Number(result.data?.total || 0);
+                const first = total ? offset + 1 : 0;
+                const last = Math.min(offset + rows.length, total);
+                if (count) count.textContent = `${first}–${last} de ${total.toLocaleString('es-CO')} filas · ${Number(result.data?.placasUnicas || 0).toLocaleString('es-CO')} placas únicas`;
+                if (pagination) {
+                    pagination.innerHTML = `${offset > 0 ? '<button class="button button--quiet" type="button" data-source-page="prev">Anterior</button>' : ''}<span class="field-hint">Página ${total ? Math.floor(offset / pageSize) + 1 : 0}</span>${offset + rows.length < total ? '<button class="button button--quiet" type="button" data-source-page="next">Siguiente</button>' : ''}`;
                 }
-                renderAssets(rows, tbody, true);
-                if (count) count.textContent = `${rows.length} en esta consulta`;
             } catch (error) {
-                renderErrorRow(tbody, 7, error.message);
+                renderErrorRow(tbody, 10, error.message);
                 if (count) count.textContent = 'No se pudo cargar';
+                if (pagination) pagination.replaceChildren();
             }
         };
-        form.onsubmit = (event) => { event.preventDefault(); search(); };
+        form.onsubmit = (event) => { event.preventDefault(); search(true); };
         const clearButton = $('[data-clear-asset-filters]');
-        if (clearButton) clearButton.onclick = () => { form.reset(); search(); };
-        tbody.onclick = (event) => {
-            const button = event.target.closest('[data-asset-detail-id]');
-            if (button) openAssetDetail(button.dataset.assetDetailId);
+        if (clearButton) clearButton.onclick = () => { form.reset(); search(true); };
+        if (pagination) pagination.onclick = (event) => {
+            const button = event.target.closest('[data-source-page]');
+            if (!button) return;
+            offset = button.dataset.sourcePage === 'next' ? offset + pageSize : Math.max(0, offset - pageSize);
+            search();
         };
         search();
     }
@@ -371,11 +407,45 @@
     }
 
     async function bindAssetsPage() {
-        if (!$('[data-assets-table]')) return;
-        await loadReferenceData();
+        const tbody = $('[data-assets-table]');
+        if (!tbody) return;
         bindAssetListing();
-        bindCreateAsset();
-        bindAssetDialog();
+        const dialog = $('[data-source-detail-dialog]');
+        const content = $('[data-source-detail-content]');
+        const title = $('[data-source-detail-title]');
+        const operationsLink = $('[data-source-open-operations]', dialog);
+        if (!dialog || !content) return;
+        $$('[data-source-detail-close]', dialog).forEach((button) => button.addEventListener('click', () => dialog.close()));
+        dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+        tbody.addEventListener('click', async (event) => {
+            const button = event.target.closest('[data-source-asset-detail]');
+            if (!button) return;
+            const rowNumber = Number(button.dataset.sourceAssetDetail);
+            if (!Number.isInteger(rowNumber) || rowNumber < 1) return;
+            if (title) title.textContent = `Detalle de la fila ${rowNumber}`;
+            content.innerHTML = '<div class="loading-state"><span class="spinner" aria-hidden="true"></span>Cargando detalle…</div>';
+            dialog.showModal();
+            try {
+                const result = await request(`/base-institucional/${rowNumber}`);
+                const row = result.data || {};
+                if (title) title.textContent = row.placa ? `Activo ${row.placa}` : `Detalle de la fila ${rowNumber}`;
+                if (operationsLink) {
+                    operationsLink.hidden = !row.activo_id;
+                    if (row.activo_id) operationsLink.href = `${basePath}/app/operaciones?activoId=${Number(row.activo_id)}`;
+                }
+                const fields = [
+                    ['ID operativo', row.activo_id || 'Sin activo operativo'], ['Fila en Excel', row.numero_fila], ['Placa', row.placa], ['Lote', row.lote],
+                    ['Descripción', row.descripcion], ['Ubicación física de origen', row.ubicacion_fisica],
+                    ['Identificación del responsable', row.identificacion_responsable], ['Nombre del responsable', row.nombre_responsable],
+                    ['Centro de costo', row.centro_costo], ['Nombre del centro de costo', row.nombre_centro_costo],
+                    ['Estado de origen', row.nombre_estado], ['Depreciado', row.depreciado],
+                    ['Resultado de importación', row.resultado], ['Observación', row.observacion],
+                ];
+                content.innerHTML = `<dl class="detail-list">${fields.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value || '—')}</dd></div>`).join('')}</dl>`;
+            } catch (error) {
+                content.innerHTML = `<div class="form-message" role="alert">${escapeHtml(error.message)}</div>`;
+            }
+        });
     }
 
     function bindOperationContext() {
@@ -498,6 +568,35 @@
         bindOperationContext();
         bindOperationForms();
         bindTransferResolution();
+
+        const historyForm=$('[data-operation-history-form]'); let historyPage=1;
+        const fillFilter=(selector,items)=>{const select=$(selector);if(!select)return;const first=select.options[0]?.outerHTML||'';select.innerHTML=first+items.map((item)=>`<option value="${Number(item.id)}">${escapeHtml(item.nombre||item.codigo||item.id)}</option>`).join('');};
+        fillFilter('#history-site',catalogs.sedes); fillFilter('#history-location',catalogs.ubicaciones);
+        const loadHistory=async()=>{
+            const summary=$('[data-history-summary]'),tbody=$('[data-history-table]'); if(!historyForm||!tbody)return;
+            const v=formValues(historyForm),query=new URLSearchParams();Object.entries(v).forEach(([k,value])=>{if(value)query.set(k,value);});query.set('pagina',String(historyPage));query.set('limite','50');
+            tbody.innerHTML='<tr><td colspan="8"><div class="loading-state">Cargando historial…</div></td></tr>';
+            try{const response=await request(`/historial-operaciones?${query}`);const rows=response.data.filas||[];tbody.innerHTML=rows.length?rows.map((row)=>`<tr><td>${escapeHtml(formatDate(row.fecha))}</td><td>${escapeHtml(row.tipo)}</td><td>${Number(row.id)}</td><td>${escapeHtml(row.placa||'—')}</td><td>${escapeHtml([row.descripcion,row.detalle].filter(Boolean).join(' · ')||'—')}</td><td>${badge(row.estado)}</td><td>${escapeHtml(row.sede_nombre||String(row.sede_id||'—'))}</td><td>${escapeHtml(row.ubicacion_nombre||String(row.ubicacion_id||'—'))}</td></tr>`).join(''):'<tr><td colspan="8" class="table-placeholder">No hay operaciones en este filtro o ámbito.</td></tr>';if(summary)summary.textContent=`Página ${historyPage} · ${rows.length} registros${rows.length===50?' · puede haber más':''}.`;}
+            catch(error){renderErrorRow(tbody,8,error.message);if(summary)summary.textContent='';}
+        };
+        historyForm?.addEventListener('submit',(event)=>{event.preventDefault();historyPage=1;loadHistory();});
+        $('[data-history-next]')?.addEventListener('click',()=>{historyPage+=1;loadHistory();});
+        await loadHistory();
+
+        const supportForm=$('[data-operation-document-form]');
+        const loadOperationDocuments=async()=>{
+            if(!supportForm)return;const values=formValues(supportForm);if(!values.operacionId)return;
+            const qs=new URLSearchParams({operacionTipo:values.operacionTipo,operacionId:values.operacionId});const target=$('[data-operation-documents]');
+            try{const [docs,acts]=await Promise.all([request(`/documentos?${qs}`),request(`/actas?${qs}`)]);const files=docs.data||[],minutes=acts.data||[];target.innerHTML=[...files.map((d)=>`<a class="catalog-chip" href="${apiBase}/documentos/${Number(d.id)}" target="_blank" rel="noopener">Documento · ${escapeHtml(d.nombre_original)}</a>`),...minutes.map((a)=>`<span class="catalog-chip">Acta ${escapeHtml(a.numero)} · ${escapeHtml(a.tipo)} · ${escapeHtml(formatDate(a.fecha))}</span>`)].join('')||'<span class="field-hint">Sin documentos ni actas asociados.</span>';}
+            catch(error){target.textContent=error.message;}
+        };
+        $('[data-load-operation-documents]')?.addEventListener('click',loadOperationDocuments);
+        supportForm?.addEventListener('submit',async(event)=>{
+            event.preventDefault();if(!supportForm.reportValidity())return;const values=formValues(supportForm);if((values.actaTipo||values.actaNumero||values.actaFecha)&&(!values.actaTipo||!values.actaNumero||!values.actaFecha)){setMessage(supportForm,'Completa tipo, número y fecha para crear el acta.');return;}setMessage(supportForm,'');setLoading(supportForm,true,'Cargando…');
+            try{const response=await request('/documentos',{method:'POST',body:new FormData(supportForm)});if(values.actaTipo||values.actaNumero||values.actaFecha){if(!values.actaTipo||!values.actaNumero||!values.actaFecha)throw new Error('Completa tipo, número y fecha para crear el acta.');await request('/actas',{method:'POST',body:{tipo:values.actaTipo.trim(),numero:values.actaNumero.trim(),fecha:values.actaFecha,documentoId:Number(response.data.id),operacionTipo:values.operacionTipo,operacionId:Number(values.operacionId)}});}setMessage(supportForm,'Documento asociado correctamente.',true);supportForm.elements.archivo.value='';await loadOperationDocuments();notify('Documento y acta asociados a la operación.');}
+            catch(error){setMessage(supportForm,error.message);}
+            finally{setLoading(supportForm,false);}
+        });
     }
 
     function renderInventory(data) {
@@ -510,6 +609,7 @@
         const inventory = data.inventario;
         const details = Array.isArray(data.detalles) ? data.detalles : [];
         activeInventoryId = Number(inventory.id);
+        const reconciliationButton=$('[data-load-reconciliation]');if(reconciliationButton)reconciliationButton.disabled=false;
         const state = String(inventory.estado || '').toUpperCase();
         if (stateChip) {
             stateChip.textContent = state;
@@ -551,13 +651,28 @@
         if (!$('[data-create-inventory-form]')) return;
         await loadReferenceData();
         const dateInput = $('#inventory-date');
-        if (dateInput && !dateInput.value) dateInput.value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        if (dateInput && !dateInput.value) {
+            const now = new Date();
+            const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+            const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+            dateInput.value = `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+        }
         const loadForm = $('[data-load-inventory-form]');
         const idInput = $('[data-inventory-id]');
         loadForm.addEventListener('submit', (event) => { event.preventDefault(); loadInventory(idInput.value); });
         const params = new URLSearchParams(window.location.search);
         const inventoryId = params.get('inventarioId');
         if (inventoryId) { idInput.value = inventoryId; loadInventory(inventoryId); }
+        const loadReconciliation=async()=>{
+            if(!activeInventoryId)return;const summary=$('[data-reconciliation-summary]'),tbody=$('[data-reconciliation-table]');
+            try{const response=await request(`/inventarios/${activeInventoryId}/conciliacion`);const data=response.data.resumen||{};currentReconciliationRows=Array.isArray(data.ubicaciones)?data.ubicaciones:[];
+                summary.innerHTML=`<span class="catalog-chip"><strong>${escapeHtml(data.inventario||'Inventario')}</strong> · ${escapeHtml(data.estado||'')}</span><span class="catalog-chip">Esperados: ${Number(data.esperados||0).toLocaleString('es-CO')}</span><span class="catalog-chip">Verificados: ${Number(data.verificados||0).toLocaleString('es-CO')}</span><span class="catalog-chip">Faltantes: ${Number(data.faltantes||0).toLocaleString('es-CO')}</span><span class="catalog-chip">Hallazgos sin activo: ${Number(data.hallazgos_sin_activo||0).toLocaleString('es-CO')}</span><span class="catalog-chip">Diferencias: ${Number(data.diferencias||0).toLocaleString('es-CO')}</span><span class="field-hint">Categorías y estados continúan pendientes de validación CECAR.</span>`;
+                tbody.innerHTML=currentReconciliationRows.length?currentReconciliationRows.map((row)=>`<tr><td>${escapeHtml(row.sede)}</td><td>${escapeHtml([row.ubicacion_codigo,row.ubicacion].filter(Boolean).join(' · '))}</td><td>${escapeHtml(row.dependencia)}</td><td>${Number(row.esperados)}</td><td>${Number(row.verificados)}</td><td>${Number(row.faltantes)}</td><td>${Number(row.hallazgos_sin_activo)}</td><td>${Number(row.diferencias)}</td></tr>`).join(''):'<tr><td colspan="8" class="table-placeholder">No hay activos esperados en el alcance de esta jornada.</td></tr>';
+                $('[data-export-reconciliation]').disabled=!currentReconciliationRows.length;
+            }catch(error){if(summary)summary.textContent=error.message;renderErrorRow(tbody,8,error.message);}
+        };
+        $('[data-load-reconciliation]')?.addEventListener('click',loadReconciliation);
+        $('[data-export-reconciliation]')?.addEventListener('click',()=>{if(!currentReconciliationRows.length)return;const cols=['sede','ubicacion_codigo','ubicacion','dependencia','esperados','verificados','faltantes','hallazgos_sin_activo','diferencias'];const csv='\ufeff'+[cols,...currentReconciliationRows.map(r=>cols.map(c=>r[c]))].map(row=>row.map(csvCell).join(',')).join('\r\n');const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));link.download=`conciliacion-inventario-${activeInventoryId}.csv`;link.click();URL.revokeObjectURL(link.href);});
 
         $('[data-create-inventory-form]').addEventListener('submit', async (event) => {
             event.preventDefault();
@@ -681,28 +796,64 @@
             try { const response = await request(`/usuarios/${userId}/roles`, { method: 'PUT', body: { roles } }); setMessage(form, `${response.data.length} asignación(es) de rol guardadas.`, true); notify('Roles actualizados.'); }
             catch (error) { setMessage(form, error.message); }
         });
+
+        const scopeType = $('[data-scope-form] [name="tipoAmbito"]');
+        const scopeReference = $('[data-scope-form] [name="referenciaId"]');
+        const refreshScopeReference = () => {
+            if (!scopeType || !scopeReference) return;
+            const kind = scopeType.value;
+            const source = kind === 'SEDE' ? catalogs.sedes : kind === 'DEPENDENCIA' ? catalogs.dependencias : kind === 'UBICACION' ? catalogs.ubicaciones : [];
+            const field = $('[data-scope-reference-field]');
+            if (field) field.hidden = kind === 'GLOBAL';
+            scopeReference.required = kind !== 'GLOBAL';
+            scopeReference.innerHTML = '<option value="">Selecciona</option>' + source.map((item) => `<option value="${Number(item.id)}">${escapeHtml(item.nombre || item.codigo || item.id)}</option>`).join('');
+        };
+        scopeType?.addEventListener('change', refreshScopeReference); refreshScopeReference();
+        const loadScopes = async () => {
+            const form = $('[data-scope-form]'); const userId = Number($('[name="usuarioId"]', form)?.value || 0); const tbody = $('[data-scope-table]');
+            if (!userId) { if (tbody) renderErrorRow(tbody,4,'Escribe el ID de usuario.'); return; }
+            try {
+                const result = await request(`/ambitos?usuarioId=${userId}`); const rows = Array.isArray(result.data) ? result.data : [];
+                tbody.innerHTML = rows.length ? rows.map((row) => `<tr><td>${escapeHtml(row.tipo_ambito)}</td><td>${escapeHtml(row.sede || row.dependencia || row.ubicacion || 'Todos los ámbitos')}</td><td>${escapeHtml(row.vigente_hasta || 'Vigente')}</td><td>${row.vigente_hasta ? 'Revocado' : `<button class="table-action" type="button" data-revoke-scope="${Number(row.id)}">Revocar</button>`}</td></tr>`).join('') : '<tr><td colspan="4" class="table-placeholder">Sin ámbitos. El acceso queda cerrado.</td></tr>';
+            } catch (error) { renderErrorRow(tbody,4,error.message); }
+        };
+        $('[data-scope-form]')?.addEventListener('submit', async (event) => {
+            event.preventDefault(); const form=event.currentTarget; if(!form.reportValidity()) return; const v=formValues(form);
+            try { await request('/ambitos',{method:'POST',body:{usuarioId:Number(v.usuarioId),tipoAmbito:v.tipoAmbito,referenciaId:asOptionalNumber(v.referenciaId)}}); setMessage(form,'Ámbito asignado.',true); await loadScopes(); }
+            catch(error){setMessage(form,error.message);}
+        });
+        $('[data-load-scopes]')?.addEventListener('click',loadScopes);
+        $('[data-scope-table]')?.addEventListener('click',async(event)=>{const button=event.target.closest('[data-revoke-scope]');if(!button)return;try{await request(`/ambitos/${Number(button.dataset.revokeScope)}`,{method:'DELETE',body:{}});await loadScopes();notify('Ámbito revocado.');}catch(error){notify(error.message,true);}});
+        const loadPolicies = async () => {
+            const target=$('[data-policy-summary]'); if(!target)return;
+            try {const response=await request('/politicas-institucionales');const rows=response.data.politicas||[];target.innerHTML=rows.map((item)=>`<span class="catalog-chip"><strong>${escapeHtml(item.clave)}</strong> · ${escapeHtml(item.estado_validacion)} · ${escapeHtml(JSON.stringify(item.valor))}</span>`).join('');const days=$('[data-retention-form] [name="dias"]');const retention=rows.find((item)=>item.clave==='retencion_datos');if(days&&retention&&retention.valor.dias)days.value=retention.valor.dias;}
+            catch(error){target.textContent=error.message;}
+        };
+        $('[data-load-policies]')?.addEventListener('click',loadPolicies);
+        $('[data-retention-form]')?.addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;const raw=$('[name="dias"]',form).value;try{await request('/politicas-institucionales',{method:'PATCH',body:{clave:'retencion_datos',dias:raw===''?null:Number(raw)}});setMessage(form,'Propuesta guardada; pendiente de validación CECAR.',true);await loadPolicies();}catch(error){setMessage(form,error.message);}});
     }
 
-    function renderReport(rows) {
+    function renderReport(result) {
         const tbody = $('[data-report-table]');
         const summary = $('[data-report-summary]');
         if (!tbody) return;
+        const rows = Array.isArray(result?.filas) ? result.filas : [];
         currentReportRows = rows;
         const reportStats = {
-            total: rows.length,
-            disponibles: rows.filter((row) => String(row.estado).toUpperCase() === 'DISPONIBLE').length,
-            asignados: rows.filter((row) => String(row.estado).toUpperCase() === 'ASIGNADO').length,
-            revision: rows.filter((row) => ['EN_REVISION', 'EN_MANTENIMIENTO'].includes(String(row.estado).toUpperCase())).length,
+            total: result?.resumen?.total ?? 0,
+            placasUnicas: result?.resumen?.placasUnicas ?? 0,
+            sinPlaca: result?.resumen?.sinPlaca ?? 0,
+            repetidas: result?.resumen?.repetidas ?? 0,
         };
         $$('[data-report-stat]').forEach((node) => {
-            node.textContent = String(reportStats[node.dataset.reportStat] ?? 0);
+            node.textContent = Number(reportStats[node.dataset.reportStat] ?? 0).toLocaleString('es-CO');
         });
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="table-placeholder">No hay activos que coincidan con los filtros.</td></tr>';
-            if (summary) summary.textContent = 'La consulta no devolvió activos.';
+            tbody.innerHTML = '<tr><td colspan="8" class="table-placeholder">No hay filas que coincidan con la búsqueda.</td></tr>';
+            if (summary) summary.textContent = `La búsqueda no encontró filas. La base contiene ${Number(result?.resumen?.total || 0).toLocaleString('es-CO')} filas.`;
         } else {
-            tbody.innerHTML = rows.map((row) => `<tr><td><strong>${escapeHtml(row.placa)}</strong></td><td>${escapeHtml(row.descripcion)}</td><td>${badge(row.estado)}</td><td>${escapeHtml(row.dependencia)}</td><td>${escapeHtml(row.ubicacion)}</td></tr>`).join('');
-            if (summary) summary.textContent = `${rows.length} activo(s) dentro de tu ámbito autorizado.`;
+            tbody.innerHTML = rows.map((row) => `<tr><td>${Number(row.numero_fila)}</td><td><strong>${escapeHtml(row.placa || 'Sin placa')}</strong></td><td>${escapeHtml(row.descripcion || '—')}</td><td>${escapeHtml(row.lote || '—')}</td><td>${badge(row.nombre_estado)}</td><td>${escapeHtml([row.centro_costo, row.nombre_centro_costo].filter(Boolean).join(' · ') || '—')}</td><td>${escapeHtml(row.ubicacion_fisica || '—')}</td><td>${escapeHtml(row.depreciado || '—')}</td></tr>`).join('');
+            if (summary) summary.textContent = `${rows.length} fila(s) encontradas; se muestran hasta 500 para descarga.`;
         }
         const exportButton = $('[data-export-report]');
         if (exportButton) exportButton.disabled = rows.length === 0;
@@ -716,7 +867,6 @@
 
     async function bindReportsPage() {
         if (!$('[data-report-form]')) return;
-        await loadReferenceData();
         $('[data-report-form]').addEventListener('submit', async (event) => {
             event.preventDefault();
             const form = event.currentTarget;
@@ -724,22 +874,23 @@
             const query = new URLSearchParams();
             Object.entries(values).forEach(([key, value]) => { if (value) query.set(key, value); });
             const tbody = $('[data-report-table]');
-            if (tbody) tbody.innerHTML = '<tr><td colspan="5"><div class="loading-state"><span class="spinner" aria-hidden="true"></span>Generando reporte…</div></td></tr>';
-            try { const result = await request(`/reportes/activos${query.size ? `?${query}` : ''}`); renderReport(Array.isArray(result.data) ? result.data : []); }
+            if (tbody) tbody.innerHTML = '<tr><td colspan="8"><div class="loading-state"><span class="spinner" aria-hidden="true"></span>Generando reporte…</div></td></tr>';
+            try { const result = await request(`/reportes/activos${query.size ? `?${query}` : ''}`); renderReport(result.data); }
             catch (error) {
-                renderErrorRow(tbody, 5, error.message);
+                renderErrorRow(tbody, 8, error.message);
                 currentReportRows = [];
                 $$('[data-report-stat]').forEach((node) => { node.textContent = '—'; });
             }
         });
         $('[data-export-report]')?.addEventListener('click', () => {
             if (!currentReportRows.length) return;
-            const header = ['placa', 'descripcion', 'estado', 'sede', 'dependencia', 'ubicacion', 'categoria'];
-            const rows = currentReportRows.map((row) => [row.placa, row.descripcion, row.estado, row.sede, row.dependencia, row.ubicacion, row.categoria]);
-            const csv = '\ufeff' + [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
+            const header = ['numero_fila', 'placa', 'descripcion', 'lote', 'nombre_estado', 'centro_costo', 'nombre_centro_costo', 'ubicacion_fisica', 'depreciado', 'resultado'];
+            const rows = currentReportRows.map((row) => [row.numero_fila, row.placa, row.descripcion, row.lote, row.nombre_estado, row.centro_costo, row.nombre_centro_costo, row.ubicacion_fisica, row.depreciado, row.resultado]);
+            // Excel en configuración regional española suele esperar punto y coma como delimitador.
+            const csv = '\ufeff' + [header, ...rows].map((row) => row.map(csvCell).join(';')).join('\r\n');
             const link = document.createElement('a');
             link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-            link.download = 'reporte-activos.csv'; link.click(); URL.revokeObjectURL(link.href);
+            link.download = 'informe-activos.csv'; link.click(); URL.revokeObjectURL(link.href);
         });
         $('[data-import-form]')?.addEventListener('submit', async (event) => {
             event.preventDefault();
@@ -764,13 +915,111 @@
             try {
                 const result = await request('/importaciones-planilla', { method: 'POST', body: new FormData(form) });
                 const idInput = $('[data-planilla-import-id]'); if (idInput) idInput.value = String(result.data.id);
-                setMessage(form, `Carga ${result.data.id}: ${result.data.filasLeidas} filas conservadas, ${result.data.placasUnicas} placas únicas y ${result.data.filasSinPlacaORepetidas} filas para revisión.`, true);
+                setMessage(form, `Carga ${result.data.id}: ${result.data.filasLeidas} filas conservadas, ${result.data.filasConCategoria} con categoría y ${result.data.filasSinPlacaORepetidas} filas para revisión.`, true);
                 notify(`Planilla conservada con estado ${result.data.estado.toLowerCase().replaceAll('_', ' ')}.`);
                 await loadPlanillaImport(result.data.id);
             } catch (error) { setMessage(form, error.message); }
             finally { setLoading(form, false); }
         });
         $('[data-load-planilla-import]')?.addEventListener('click', () => loadPlanillaImport($('[data-planilla-import-id]').value));
+        const conversionResult = $('[data-planilla-mapping]');
+        let conversionId = 0;
+        let conversionPayload = null;
+        const renderConversionOptions = (data) => {
+            const categoryOptions = (data.categoria || []).map((item) => `<option value="${Number(item.id)}">${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)}</option>`).join('');
+            const dependencyOptions = (data.dependencias || []).map((item) => `<option value="${Number(item.id)}">${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)}</option>`).join('');
+            const locationOptions = (data.ubicaciones || []).map((item) => `<option value="${Number(item.id)}">${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)}</option>`).join('');
+            const stateOptions = (data.estados || []).map((state) => `<option value="${escapeHtml(state)}">${escapeHtml(state)}</option>`).join('');
+            const categoryFields = (data.valores.categoriasOrigen || []).map((item) => `<div class="field"><label>Categoría de origen: ${escapeHtml(item.categoria_origen)} (${Number(item.filas)} filas)</label><select data-source-category-key="${escapeHtml(item.key)}"><option value="">No mapear; dejar pendiente</option>${categoryOptions}</select></div>`).join('');
+            const dependencyFields = (data.valores.centrosCosto || []).map((item) => `<div class="field"><label>Centro de costo ${escapeHtml(item.centro_costo || 'sin código')} · ${escapeHtml(item.nombre_centro_costo || 'sin nombre')} (${Number(item.filas)} filas)</label><select data-source-dependency-key="${escapeHtml(item.key)}"><option value="">No mapear; dejar pendiente</option>${dependencyOptions}</select></div>`).join('');
+            const locationFields = (data.valores.ubicacionesFisicas || []).map((item) => `<div class="field"><label>Ubicación de origen: ${escapeHtml(item.ubicacion_fisica || 'sin ubicación')} (${Number(item.filas)} filas)</label><select data-source-location-key="${escapeHtml(item.key)}"><option value="">No mapear; dejar pendiente</option>${locationOptions}</select></div>`).join('');
+            const stateFields = (data.valores.estadosOrigen || []).map((item) => `<div class="field"><label>Estado de origen: ${escapeHtml(item.nombre_estado || 'sin estado')} (${Number(item.filas)} filas)</label><select data-source-state-key="${escapeHtml(item.key)}"><option value="">No mapear; dejar pendiente</option>${stateOptions}</select></div>`).join('');
+            const missingCategoryWarning = Number(data.filasSinCategoria)
+                ? `<p class="form-message" role="status">${Number(data.filasSinCategoria)} filas no tienen categoría en el XLSX y no podrán convertirse hasta completar ese dato.</p>`
+                : '';
+            conversionResult.innerHTML = `<form class="form-stack" data-planilla-conversion-form>
+                <p>Relaciona cada categoría de origen con una categoría activa del catálogo. Las sugerencias exactas se seleccionan automáticamente; verifica los mapeos antes de continuar.</p>
+                ${missingCategoryWarning}
+                <div class="form-grid">${categoryFields}${dependencyFields}${locationFields}${stateFields}</div>
+                <div class="form-actions"><div class="form-message" data-form-message role="alert"></div><button class="button button--primary" type="submit">Previsualizar conversión</button></div>
+            </form><div data-planilla-conversion-preview aria-live="polite"></div>`;
+            (data.valores.categoriasOrigen || []).forEach((item) => {
+                if (item.suggestedId) $(`[data-source-category-key="${item.key}"]`, conversionResult).value = String(item.suggestedId);
+            });
+            (data.valores.centrosCosto || []).forEach((item) => {
+                if (item.suggestedId) $(`[data-source-dependency-key="${item.key}"]`, conversionResult).value = String(item.suggestedId);
+            });
+            (data.valores.ubicacionesFisicas || []).forEach((item) => {
+                if (item.suggestedId) $(`[data-source-location-key="${item.key}"]`, conversionResult).value = String(item.suggestedId);
+            });
+            (data.valores.estadosOrigen || []).forEach((item) => {
+                if (item.suggestedState) $(`[data-source-state-key="${item.key}"]`, conversionResult).value = item.suggestedState;
+            });
+        };
+        $('[data-prepare-planilla-conversion]')?.addEventListener('click', async () => {
+            const id = Number($('[data-planilla-conversion-id]')?.value);
+            if (!Number.isInteger(id) || id < 1) { conversionResult.innerHTML = '<div class="form-message" role="alert">Escribe un ID de importación válido.</div>'; return; }
+            conversionResult.innerHTML = '<div class="loading-state">Cargando categorías y mapeos de origen…</div>';
+            try {
+                const result = await request(`/importaciones-planilla/${id}/opciones`);
+                conversionId = id;
+                conversionPayload = null;
+                if (!result.data.categoria?.length) { conversionResult.innerHTML = '<div class="form-message" role="alert">No hay categorías activas para asignar.</div>'; return; }
+                if (!(result.data.valores.categoriasOrigen || []).length) {
+                    conversionResult.innerHTML = `<div class="form-message" role="alert">Esta importación no contiene categorías por fila (${Number(result.data.filasSinCategoria)} filas sin categoría). Agrega una columna <strong>Categoria</strong> al XLSX, asígnala por activo y vuelve a importarlo.</div>`;
+                    return;
+                }
+                renderConversionOptions(result.data);
+            } catch (error) { conversionResult.innerHTML = `<div class="form-message" role="alert">${escapeHtml(error.message)}</div>`; }
+        });
+        conversionResult?.addEventListener('change', (event) => {
+            if (event.target.closest('[data-planilla-conversion-form]')) {
+                conversionPayload = null;
+                const preview = $('[data-planilla-conversion-preview]', conversionResult);
+                if (preview) preview.replaceChildren();
+            }
+        });
+        conversionResult?.addEventListener('submit', async (event) => {
+            const form = event.target.closest('[data-planilla-conversion-form]');
+            if (!form) return;
+            event.preventDefault();
+            if (!form.reportValidity()) return;
+            conversionPayload = {
+                categorias: $$('[data-source-category-key]', form).map((select) => ({ key: select.dataset.sourceCategoryKey, categoriaId: asOptionalNumber(select.value) })),
+                dependencias: $$('[data-source-dependency-key]', form).map((select) => ({ key: select.dataset.sourceDependencyKey, dependenciaId: asOptionalNumber(select.value) })),
+                ubicaciones: $$('[data-source-location-key]', form).map((select) => ({ key: select.dataset.sourceLocationKey, ubicacionId: asOptionalNumber(select.value) })),
+                estados: $$('[data-source-state-key]', form).map((select) => ({ key: select.dataset.sourceStateKey, estado: select.value || null })),
+            };
+            const preview = $('[data-planilla-conversion-preview]', conversionResult);
+            preview.innerHTML = '<div class="loading-state">Calculando filas convertibles…</div>';
+            try {
+                const result = await request(`/importaciones-planilla/${conversionId}/previsualizar`, { method: 'POST', body: conversionPayload });
+                const summary = result.data;
+                const canFinalize = Number(summary.placasYaExistentes) + Number(summary.datosInvalidos) > 0;
+                const action = summary.creables
+                    ? `Crear ${Number(summary.creables)} activos y registrar omisiones`
+                    : 'Registrar filas que se omitirán';
+                preview.innerHTML = `<div class="import-result"><strong>Vista previa</strong><p>${Number(summary.creables)} activos se crearían de ${Number(summary.filasPendientes)} filas pendientes. ${Number(summary.sinCategoria)} filas no tienen categoría, ${Number(summary.placasYaExistentes)} placas ya existen, ${Number(summary.datosInvalidos)} filas tienen datos inválidos y ${Number(summary.requierenMapeo)} filas requieren otros mapeos.</p>${summary.creables || canFinalize ? `<button class="button button--primary" type="button" data-confirm-planilla-conversion>${action}</button>` : '<small>No hay filas listas. Ajusta los mapeos y vuelve a previsualizar.</small>'}</div>`;
+            } catch (error) { preview.innerHTML = `<div class="form-message" role="alert">${escapeHtml(error.message)}</div>`; conversionPayload = null; }
+        });
+        conversionResult?.addEventListener('click', async (event) => {
+            if (!event.target.closest('[data-confirm-planilla-conversion]') || !conversionPayload) return;
+            const button = event.target.closest('[data-confirm-planilla-conversion]');
+            button.disabled = true;
+            button.textContent = 'Procesando filas…';
+            try {
+                const result = await request(`/importaciones-planilla/${conversionId}/convertir`, { method: 'POST', body: conversionPayload });
+                conversionPayload = null;
+                notify(`${result.data.creados} activos creados; ${result.data.placasYaExistentes} placas existentes y ${result.data.omitidosPorDatosInvalidos} filas inválidas omitidas. ${result.data.requierenMapeo} filas siguen pendientes.`);
+                await loadPlanillaImport(conversionId);
+                const preview = $('[data-planilla-conversion-preview]', conversionResult);
+                if (preview) preview.innerHTML = `<div class="document-result">${Number(result.data.creados)} activos creados; ${Number(result.data.placasYaExistentes) + Number(result.data.omitidosPorDatosInvalidos)} filas omitidas. Las filas pendientes conservan sus datos fuente.</div>`;
+            } catch (error) {
+                button.disabled = false;
+                button.textContent = 'Reintentar conversión';
+                notify(error.message, true);
+            }
+        });
         $('[data-planilla-import-result]')?.addEventListener('click', (event) => {
             const button = event.target.closest('[data-planilla-offset]');
             if (button) loadPlanillaImport($('[data-planilla-import-id]').value, Number(button.dataset.planillaOffset));
@@ -990,6 +1239,8 @@
         if (!target) return;
         const parsed = Number(id);
         if (!Number.isInteger(parsed) || parsed < 1) { target.innerHTML = '<div class="form-message" role="alert">Escribe un ID de planilla válido.</div>'; return; }
+        const conversionIdInput = $('[data-planilla-conversion-id]');
+        if (conversionIdInput) conversionIdInput.value = String(parsed);
         target.innerHTML = '<div class="loading-state"><span class="spinner" aria-hidden="true"></span>Consultando filas fuente…</div>';
         try {
             const result = await request(`/importaciones-planilla/${parsed}?offset=${Math.max(0, Math.floor(offset))}`);
@@ -997,7 +1248,7 @@
             const item = result.data.importacion;
             const pageOffset = Number(result.data.offset);
             const total = Number(result.data.totalFilasFuente);
-            target.innerHTML = `<div class="import-result"><strong>${escapeHtml(item.nombre_archivo || `Importación #${item.id}`)}</strong><p>${escapeHtml(item.estado)} · ${total} filas fuente · mostrando ${rows.length ? pageOffset + 1 : 0}–${pageOffset + rows.length}</p>${rows.length ? `<ul>${rows.map((row) => `<li>Fila ${Number(row.numero_fila)} · ${escapeHtml(row.placa || 'Sin placa')} · ${escapeHtml(row.nombre_estado || 'Sin estado')} · ${escapeHtml(row.resultado)}${row.observacion ? `: ${escapeHtml(row.observacion)}` : ''}</li>`).join('')}</ul>` : '<small>No hay filas en esta página.</small>'}<div class="inline-form">${pageOffset > 0 ? `<button class="button button--quiet" type="button" data-planilla-offset="${Math.max(0, pageOffset - 20)}">Anterior</button>` : ''}${pageOffset + rows.length < total ? `<button class="button button--quiet" type="button" data-planilla-offset="${pageOffset + 20}">Siguiente</button>` : ''}</div></div>`;
+            target.innerHTML = `<div class="import-result"><strong>${escapeHtml(item.nombre_archivo || `Importación #${item.id}`)}</strong><p>${escapeHtml(item.estado)} · ${total} filas fuente · mostrando ${rows.length ? pageOffset + 1 : 0}–${pageOffset + rows.length}</p>${rows.length ? `<ul>${rows.map((row) => `<li>Fila ${Number(row.numero_fila)} · ${escapeHtml(row.placa || 'Sin placa')} · ${escapeHtml(row.categoria_origen || 'Sin categoría')} · ${escapeHtml(row.nombre_estado || 'Sin estado')} · ${escapeHtml(row.resultado)}${row.activo_id ? ` · Activo #${Number(row.activo_id)}` : ''}${row.observacion ? `: ${escapeHtml(row.observacion)}` : ''}${row.conversion_observacion ? ` — ${escapeHtml(row.conversion_observacion)}` : ''}</li>`).join('')}</ul>` : '<small>No hay filas en esta página.</small>'}<div class="inline-form">${pageOffset > 0 ? `<button class="button button--quiet" type="button" data-planilla-offset="${Math.max(0, pageOffset - 20)}">Anterior</button>` : ''}${pageOffset + rows.length < total ? `<button class="button button--quiet" type="button" data-planilla-offset="${pageOffset + 20}">Siguiente</button>` : ''}</div></div>`;
         } catch (error) { target.innerHTML = `<div class="form-message" role="alert">${escapeHtml(error.message)}</div>`; }
     }
 

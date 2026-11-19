@@ -11,7 +11,7 @@ final class DependenciaController extends ApiController
     public function listar(array $params = []): never
     {
         $id = $this->queryInt('sedeId');
-        $this->respond($id === null ? (new DependenciaDAO($this->pdo))->buscarPorCampo('estado', 'ACTIVA') : (new DependenciaDAO($this->pdo))->buscarPorCampo('sede_id', $id));
+        $this->respond($id === null ? (new DependenciaDAO($this->pdo))->buscarPorCampo('estado', 'ACTIVA', 500) : (new DependenciaDAO($this->pdo))->buscarPorCampo('sede_id', $id, 500));
     }
 
     public function crear(array $params = []): never

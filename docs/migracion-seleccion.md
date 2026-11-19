@@ -1,6 +1,6 @@
 # Extensión de base de datos: Procesos de selección
 
-`database/03_seleccion.sql` agrega de forma no destructiva las tablas del módulo. No modifica ni borra tablas de activos.
+`database/migraciones/03_seleccion.sql` agrega de forma no destructiva las tablas del módulo. No modifica ni borra tablas de activos.
 
 ## Tablas y relaciones
 
@@ -19,7 +19,7 @@ La migración crea permisos `seleccion.proceso.leer`, `seleccion.proceso.adminis
 
 1. Exporta una copia de seguridad de `gestion_activos` antes de cambiarla.
 2. En phpMyAdmin, selecciona `gestion_activos` y abre **Importar**.
-3. Elige `database/03_seleccion.sql` y ejecútalo. Importa `01_schema.sql` y `02_seed.sql` solo si la base aún no los tiene; no los vuelvas a importar sobre datos existentes.
+3. Elige `database/migraciones/03_seleccion.sql` y ejecútalo. Importa `database/base/01_schema.sql` y `database/datos-prueba/02_seed.sql` solo si la base aún no los tiene; no los vuelvas a importar sobre datos existentes.
 4. Revisa las dos consultas de verificación al final del script: deben listar cuatro tablas y tres permisos.
 
 El script requiere MySQL 8.0.16 o superior para hacer cumplir sus restricciones `CHECK`. No es una operación destructiva y se puede volver a ejecutar, aunque `CREATE TABLE IF NOT EXISTS` no repara una tabla preexistente con estructura distinta.

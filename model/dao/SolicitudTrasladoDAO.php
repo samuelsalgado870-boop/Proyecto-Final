@@ -69,11 +69,14 @@ final class SolicitudTrasladoDAO extends ConsultaEntidadDAO
         };
 
         return $this->transaction(function () use ($id, $aprobadorId, $decision, $estado, $observacion): bool {
-            $find = $this->pdo->prepare('SELECT activo_id, estado FROM solicitud_traslado WHERE id = :id FOR UPDATE');
+            $find = $this->pdo->prepare('SELECT activo_id, solicitante_id, estado FROM solicitud_traslado WHERE id = :id FOR UPDATE');
             $find->execute(['id' => $id]);
             $row = $find->fetch();
             if ($row === false || $row['estado'] !== 'SOLICITADO') {
                 return false;
+            }
+            if ((int) $row['solicitante_id'] === $aprobadorId) {
+                throw new \DomainException('La persona solicitante no puede aprobar su propio traslado.');
             }
             $approval = $this->pdo->prepare(
                 "INSERT INTO aprobacion (operacion_tipo,operacion_id,aprobador_id,decision,observacion) VALUES ('TRASLADO',:id,:aprobador,:decision,:observacion)"

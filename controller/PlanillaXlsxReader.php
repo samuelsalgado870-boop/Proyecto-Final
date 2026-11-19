@@ -12,6 +12,7 @@ final class PlanillaXlsxReader
         'Identificacion_responsable', 'Nombre_responsable', 'Centro_costo',
         'Nombre_centro_costo', 'Nombre_estado', 'Depreciado',
     ];
+    private const CATEGORY_HEADERS = ['Categoria', 'Categoría'];
 
     /** @return array{headerRow:int, rows:iterable<array{row:int,values:array<string,string|null>}>} */
     public function read(string $path): array
@@ -59,6 +60,13 @@ final class PlanillaXlsxReader
                     $column = array_search($header, $headers, true);
                     $value = $column === false ? null : ($values[$column] ?? null);
                     $record[$header] = $value === null || trim($value) === '' ? null : trim($value);
+                }
+                foreach (self::CATEGORY_HEADERS as $categoryHeader) {
+                    $column = array_search($categoryHeader, $headers, true);
+                    if ($column === false) continue;
+                    $value = $values[$column] ?? null;
+                    $record['Categoria'] = $value === null || trim($value) === '' ? null : trim($value);
+                    break;
                 }
                 if (count(array_filter($record, static fn ($value) => $value !== null)) === 0) continue;
                 $rows[] = ['row' => $number, 'values' => $record];

@@ -99,7 +99,7 @@ final class ActivoDAO extends ConsultaEntidadDAO
         return new ActivoVO(
             (int) $row['id'], $row['placa'], $this->date($row['fecha_asignacion_placa']), $row['serial'],
             $row['descripcion'], (int) $row['categoria_id'], $row['marca'], $row['modelo'], $row['estado'],
-            (int) $row['ubicacion_id'], (int) $row['dependencia_id'], new DateTimeImmutable($row['creado_en'])
+            (int) $row['ubicacion_id'], (int) $row['dependencia_id'], new DateTimeImmutable($row['creado_en']), $row['estado_validacion'] ?? 'PENDIENTE'
         );
     }
 }

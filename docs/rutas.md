@@ -1,10 +1,10 @@
-﻿# Endpoints API implementados
+# Endpoints API implementados
 
 ## Alcance
 
 Prefijo: `/api/v1`. Las rutas devuelven JSON salvo respuestas `204`. Se propone autenticación por sesión PHP con cookie `HttpOnly`, `SameSite=Lax` y `Secure` bajo HTTPS. Las operaciones mutables requieren token CSRF. Los nombres de permisos de la tabla son sugeridos y deben relacionarse con los roles institucionales.
 
-Los endpoints reflejan el alcance RF-001–RF-028. Las rutas de archivos guardan metadata y archivos fuera de `public/`; la tabla `documento` no tiene una FK polimórfica hacia activos, novedades o mantenimientos, así que la asociación automática a esas entidades queda pendiente de una decisión/modelo de datos. Los archivos se vinculan mediante `acta.documento_id` cuando se crea el acta.
+Los endpoints reflejan el alcance RF-001–RF-028. Los documentos y actas operativos se vinculan mediante relaciones tipadas en `documento_operacion` y `acta`; los archivos se guardan fuera de `public/`. Las decisiones institucionales aún pendientes se describen en [implementacion-cecar.md](implementacion-cecar.md).
 
 ## Formato de respuesta y errores
 
@@ -55,6 +55,7 @@ Para las devoluciones, el usuario que recibe queda registrado como el usuario au
 | `POST` | `/activos/{id}/mantenimientos` | `MantenimientoController::crear` | `{diagnostico,acciones?,tecnicoProveedor?,fechaInicio}` | `201` ID | `400, 401, 403, 404, 409, 500` | RF-020, RN-011 |
 | `POST` | `/inventarios` | `InventarioController::crear` | `{nombre,alcance,sedeId?,dependenciaId?,ubicacionId?,categoriaId?,responsableId,fechaInicio}` | `201` ID | `400, 401, 403, 404, 500` | RF-021 |
 | `GET` | `/inventarios/{id}` | `InventarioController::mostrar` | ID de inventario | `200` jornada y resumen | `400, 401, 403, 404, 405, 500` | RF-021–023 |
+| `GET` | `/inventarios/{id}/conciliacion` | `InventarioController::conciliar` | ID de inventario | Totales y desglose por sede/ubicación/dependencia | `401, 403, 404, 500` | RF-023, RF-025 |
 | `POST` | `/inventarios/{id}/iniciar` | `InventarioController::iniciar` | Sin payload | `200` jornada | `401, 403, 404, 409, 500` | RF-021 |
 | `POST` | `/inventarios/{id}/detalles` | `InventarioDetalleController::crear` | `{activoId?,verificadorId?,resultado,placaObservada?,ubicacionObservada?,condicionFisica?,observacion?}` | `201` ID | `400, 401, 403, 404, 409, 500` | RF-022 |
 | `POST` | `/inventarios/{id}/detalles/{detalleId}/diferencias` | `DiferenciaInventarioController::crear` | `{descripcion,responsableId?,decision?}` | `201` ID | `400, 401, 403, 404, 409, 500` | RF-023, RN-012 |
@@ -62,7 +63,8 @@ Para las devoluciones, el usuario que recibe queda registrado como el usuario au
 | `POST` | `/activos/{id}/bajas` | `BajaActivoController::solicitar` | `{causal,solicitud}` | `201` ID | `400, 401, 403, 404, 409, 500` | RF-024, RN-013 |
 | `GET` | `/notificaciones` | `NotificacionController::listar` | `?estado=&limite=` | `200` lista del usuario | `400, 401, 403, 405, 500` | RF-017, RF-025 |
 | `PATCH` | `/notificaciones/{id}/leida` | `NotificacionController::marcarLeida` | Sin payload | `200` notificación | `401, 403, 404, 409, 500` | RF-025 |
-| `GET` | `/reportes/activos` | `ReporteController::activos` | Filtros de sede, dependencia, ubicación, categoría y estado | `200` filas exportables | `400, 401, 403, 405, 500` | RF-025 |
+| `GET` | `/reportes/activos?q=` | `ReporteController::activos` | Búsqueda sobre la última planilla XLSX, máximo 500 filas | `200` filas exportables y resumen de la base | `400, 401, 403, 500` | Base maestra CECAR |
+| `GET` | `/base-institucional?limite=50&offset=0&q=` | `PlanillaImportacionController::baseInstitucional` | Búsqueda y paginación sobre la última planilla XLSX; no devuelve los datos personales del responsable | `200` filas de origen y resumen de la base | `400, 401, 403, 500` | Base maestra CECAR |
 | `GET` | `/procesos-seleccion/unidades` | `ProcesoSeleccionController::unidades` | Sin parámetros | `200` unidades activas | `401, 403, 405, 500` | Extensión del módulo de selección |
 | `GET` | `/procesos-seleccion` | `ProcesoSeleccionController::listar` | `?estado=&dependenciaId=&q=` | `200` procesos con conteos de documentos | `400, 401, 403, 405, 500` | Extensión del módulo de selección |
 | `POST` | `/procesos-seleccion` | `ProcesoSeleccionController::crear` | `{nombre,dependenciaId,estado?,fechaApertura?,fechaCierre?}` | `201` ID | `400, 401, 403, 404, 409, 500` | Extensión del módulo de selección |
@@ -74,23 +76,34 @@ Para las devoluciones, el usuario que recibe queda registrado como el usuario au
 | `PATCH` | `/documentos-postulacion/{id}/revision` | `DocumentoPostulacionController::revisar` | `{estado,observacion?}` | `200` estado de revisión | `400, 401, 403, 404, 500` | Extensión del módulo de selección |
 | `GET` | `/documentos-postulacion/{id}` | `DocumentoPostulacionController::descargar` | ID de documento | `200` archivo privado adjunto | `401, 403, 404, 500` | Extensión del módulo de selección |
 | `POST` | `/documentos` | `DocumentoController::subir` | `multipart/form-data`: `archivo` (PDF, PNG o JPEG; máximo 10 MB) | `201` metadatos privados | `400, 401, 403, 413, 415, 500` | RF-008, RF-019, RF-026, RNF-008 |
+| `GET` | `/historial-operaciones` | `HistorialOperacionesController::listar` | `?pagina=&limite=&q=&tipo=&sedeId=&ubicacionId=` | Página dentro del ámbito vigente | `400, 401, 403, 500` | RF-025 |
+| `GET` | `/documentos` | `DocumentoController::listar` | `?operacionTipo=&operacionId=` | Documentos asociados a una operación | `400, 401, 403, 404, 500` | RF-026 |
+| `POST` | `/actas` | `ActaController::crear` | `{tipo,numero,fecha,documentoId?,operacionTipo,operacionId}` | Acta ligada y tipada | `400, 401, 403, 404, 409, 500` | RF-026 |
+| `GET` | `/actas` | `ActaController::listar` | `?operacionTipo=&operacionId=` | Actas de la operación | `400, 401, 403, 404, 500` | RF-026 |
+| `GET/POST/DELETE` | `/ambitos` y `/ambitos/{id}` | `AmbitoAccesoController` | Consulta por usuario; alta `{usuarioId,tipoAmbito,referenciaId?}`; revocación lógica | Ámbitos por usuario | `400, 401, 403, 404, 409, 500` | RNF-001, RNF-003 |
+| `GET/PATCH` | `/politicas-institucionales` | `PoliticaInstitucionalController` | Consulta; `{clave:"retencion_datos",dias}` | Política y estado de validación | `400, 401, 403, 404, 500` | RNF-007, RNF-008 |
 | `GET` | `/documentos/{id}` | `DocumentoController::descargar` | ID de documento | `200` archivo autorizado | `401, 403, 404, 405, 500` | RF-026, RNF-008 |
 | `POST` | `/importaciones` | `ImportacionController::crear` | `multipart/form-data`: archivo de inventario | `202` ID y estado de validación | `400, 401, 403, 413, 415, 500` | RF-028 |
-| `POST` | `/importaciones-planilla` | `PlanillaImportacionController::crear` | `multipart/form-data`: XLSX con hoja `Lectura` | `202` conteos y estado; conserva cada fila de origen | `400, 401, 403, 409, 413, 415, 500` | RF-028 |
+| `POST` | `/importaciones-planilla` | `PlanillaImportacionController::crear` | `multipart/form-data`: XLSX con hoja `Lectura`; columna `Categoria`/`Categoría` opcional al conservar fuente | `202` conteos y estado, incluidas filas con categoría | `400, 401, 403, 409, 413, 415, 500` | RF-028 |
 | `GET` | `/importaciones-planilla/{id}?offset=0` | `PlanillaImportacionController::mostrar` | ID y desplazamiento opcional | `200` resumen y 20 filas fuente | `400, 401, 403, 404, 500` | RF-028 |
+| `GET` | `/importaciones-planilla/{id}/opciones` | `PlanillaImportacionController::opcionesConversion` | Importación propia o administración; requiere permiso para crear activos | `200` categorías, catálogos y valores fuente agrupados | `401, 403, 404, 409, 500` | RF-028 |
+| `POST` | `/importaciones-planilla/{id}/previsualizar` | `PlanillaImportacionController::previsualizarConversion` | `{categorias,dependencias,ubicaciones,estados}` con mapeos por valor de origen | `200` conteos de activos creables, placas existentes, datos inválidos y mapeos pendientes | `400, 401, 403, 404, 409, 500` | RF-028 |
+| `POST` | `/importaciones-planilla/{id}/convertir` | `PlanillaImportacionController::convertir` | Los mismos mapeos; requiere permiso y ámbito de creación | `201` si crea activos; `200` si solo registra filas omitidas | `400, 401, 403, 404, 409, 500` | RF-028 |
 | `GET` | `/importaciones/{id}` | `ImportacionController::mostrar` | ID de importación | `200` resumen y errores por fila | `401, 403, 404, 405, 500` | RF-028 |
 | `GET` | `/auditoria` | `AuditoriaController::listar` | `?entidad=&entidadId=&limite=` | `200` eventos | `400, 401, 403, 405, 500` | RF-027, RNF-003 |
+| `GET` | `/actas` | `ActaController::listar` | `?operacionTipo=&operacionId=` | Actas asociadas a una operación | `400, 401, 403, 404, 500` | RF-026 |
+| `GET/POST/DELETE` | `/ambitos` y `/ambitos/{id}` | `AmbitoAccesoController` | Consulta por usuario; alta por tipo y referencia; revocación lógica | Ámbitos por usuario | `400, 401, 403, 404, 409, 500` | RNF-001, RNF-003 |
 
 ## Autorización implementada
 
 - Sin sesión: solo `POST /sesion`; el resto requiere `401`.
 - La extensión de selección usa `seleccion.proceso.leer` para consultar, `seleccion.proceso.administrar` para crear convocatorias/postulaciones y cargar archivos, y `seleccion.postulacion.revisar` para dictaminar documentos. Debe asignarse solo a personal autorizado; la migración lo concede al rol de pruebas `ADMIN_PRUEBA` únicamente si está presente.
 - Lecturas y cambios de catálogos, usuarios, permisos y ámbitos requieren permisos de administración/consulta según el alcance institucional; fuera del ámbito autorizado, responder `403`.
-- Aprobación de traslados, bajas y diferencias debe requerir permiso de aprobación y registrar quién decidió. Se debe confirmar la regla de separación entre solicitante y aprobador (RN-008).
+- Quien solicita un traslado no puede aprobarlo; la regla es provisional y CECAR debe validar los flujos institucionales completos.
 - Cada endpoint valida el alcance de sede/dependencia/ubicación/custodia del usuario. No confiar en IDs enviados por el cliente para determinar autorización.
-- La descarga de documentos se limita a quien los cargÃ³ o a administraciÃ³n; nunca se entrega la ruta privada del servidor.
+- La descarga de documentos se permite al cargador, administración o usuarios con ámbito vigente sobre la operación asociada.
 
-La autenticación usa sesión PHP y token CSRF en métodos mutables. Los permisos y ámbitos se evalúan desde las relaciones de usuario, rol, permiso y alcance existentes. Para documentos, la base actual no modela una relación genérica con novedades o mantenimientos: el archivo se registra en privado y su descarga se limita a quien lo cargó o a administración. La importación CSV usa las columnas indicadas en `ImportacionController`. La carga XLSX guarda las filas de origen en `fila_planilla_activo` tras importar `database/04_planilla_activos_origen.sql`; no crea activos operativos ni relaciones de catálogo automáticamente. Ambas consultas se limitan a quien inició la carga o a administración.
+La autenticación usa sesión PHP y token CSRF en métodos mutables. Los ámbitos tienen denegación por defecto. Retención, aprobaciones institucionales completas y catálogos de categoría/estado están pendientes; no se ejecuta borrado automático. Consulta [implementacion-cecar.md](implementacion-cecar.md) para los límites y migraciones.
 
 ## Pruebas manuales con curl
 

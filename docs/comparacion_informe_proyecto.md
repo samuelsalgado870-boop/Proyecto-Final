@@ -27,7 +27,7 @@ El informe describe una herramienta de apoyo para el inventario físico anual: r
 - La importación CSV autentica/autorizada limita tamaño y exige columnas. La validación por extensión no demuestra por sí sola que el contenido sea un CSV benigno; debe tratarse como importación de texto y no ejecutarse.
 - No se encontró análisis antivirus de archivos subidos. Antes de producción hay que instalar/configurar un scanner o retirar la carga de documentos si el despliegue no puede inspeccionarlos.
 - La configuración Apache y los permisos del sistema operativo dependen del despliegue. En XAMPP local se debe servir `public/` como document root; no exponer la raíz del proyecto. La carpeta de carga necesita permisos de escritura únicamente para el usuario del servicio web y no debe permitir ejecución.
-- El seed contiene cuentas ficticias de demostración y una contraseña de prueba conocida (`database/02_seed.sql`); es exclusivamente para desarrollo y no se debe ejecutar ni distribuir como carga de producción.
+- El seed contiene cuentas ficticias de demostración y una contraseña de prueba conocida (`database/datos-prueba/02_seed.sql`); es exclusivamente para desarrollo y no se debe ejecutar ni distribuir como carga de producción.
 - No se encontró configuración de repositorio Git en la raíz al revisar este workspace. El control de cambios, separación de ambientes, cuentas del sistema operativo y bóveda/rotación de secretos deben definirse en la infraestructura/equipo.
 - El proyecto no demuestra cumplimiento certificado FIPS 140-2 ni una política institucional de llaves. No debe afirmarse ese cumplimiento sin validar runtime, sistema operativo y módulos criptográficos del entorno.
 
@@ -42,4 +42,4 @@ El informe describe una herramienta de apoyo para el inventario físico anual: r
 
 ## Archivos revisados
 
-`config/database.php`, `public/index.php`, `controller/DocumentoController.php`, `controller/ImportacionController.php`, `controller/InventarioController.php`, `controller/InventarioDetalleController.php`, `model/dao/`, `model/vo/`, `view/`, `public/assets/js/app.js`, `database/01_schema.sql`, `database/02_seed.sql`, `docs/requerimientos.md`, `docs/rutas.md` y `docs/vistas.md`.
+`config/database.php`, `public/index.php`, `controller/DocumentoController.php`, `controller/ImportacionController.php`, `controller/InventarioController.php`, `controller/InventarioDetalleController.php`, `model/dao/`, `model/vo/`, `view/`, `public/assets/js/app.js`, `database/base/01_schema.sql`, `database/datos-prueba/02_seed.sql`, `docs/requerimientos.md`, `docs/rutas.md` y `docs/vistas.md`.

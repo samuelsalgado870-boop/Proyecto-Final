@@ -9,6 +9,16 @@ use DateTimeImmutable;
 
 final class InventarioController extends ApiController
 {
+    public function conciliar(array $params): never
+    {
+        $id = $this->routeId($params);
+        $inventory = (new InventarioDAO($this->pdo))->buscarPorId($id);
+        if ($inventory === null) $this->notFound('No existe el inventario.');
+        $this->assertInventoryScope($inventory);
+        $report = (new \App\Model\DAO\ConciliacionDAO($this->pdo))->porInventario($id);
+        $this->respond(['resumen'=>$report,'pendienteCECAR'=>true]);
+    }
+
     public function crear(array $params = []): never
     {
         $body = $this->body();

@@ -8,7 +8,7 @@
 
 ## Discrepancias conocidas del esquema existente
 
-`database/01_schema.sql` ya contiene varias entidades de la propuesta, pero no la implementa por completo. Entre las diferencias que se deben resolver antes de consolidar el SQL:
+`database/base/01_schema.sql` ya contiene varias entidades de la propuesta, pero no la implementa por completo. Entre las diferencias que se deben resolver antes de consolidar el SQL:
 
 - El esquema usa `documento_activo` en lugar de la entidad general `documento`, e incluye listas de campos de categoría en JSON en vez de `categoria_campo`.
 - No aparecen las entidades propuestas `aprobacion`, `devolucion` ni `acta_participante`; `acta` almacena participantes como texto y usa una relación polimórfica con operación.
@@ -21,7 +21,7 @@ Este listado no sustituye una revisión completa del SQL ni constituye validaci�
 
 ## Seguridad ante ejecución
 
-El archivo `database/01_schema.sql` contiene `DROP TABLE IF EXISTS`. No ejecutarlo sobre una base que contenga datos que deban conservarse. La siguiente versión, después de aprobar el modelo, debe ser un script de creación para una base nueva, revisado y probado de forma controlada.
+El archivo `database/base/01_schema.sql` contiene `DROP TABLE IF EXISTS`. No ejecutarlo sobre una base que contenga datos que deban conservarse. La siguiente versión, después de aprobar el modelo, debe ser un script de creación para una base nueva, revisado y probado de forma controlada.
 
 ## Nombre de base de datos
 

@@ -27,6 +27,7 @@ header('X-Content-Type-Options: nosniff');
 header('Cache-Control: no-store');
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
+date_default_timezone_set('America/Bogota');
 
 $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
 ini_set('session.use_strict_mode', '1');
@@ -132,6 +133,11 @@ $routes = [
     ['PATCH','/api/v1/usuarios/(?P<id>\d+)/estado','UsuarioController','cambiarEstado','usuarios.cuenta.administrar'],
     ['PUT','/api/v1/usuarios/(?P<id>\d+)/roles','UsuarioRolController','reemplazar','usuarios.cuenta.administrar'],
     ['GET','/api/v1/roles','RolController','listar','usuarios.cuenta.administrar'],
+    ['GET','/api/v1/ambitos','AmbitoAccesoController','listar','usuarios.cuenta.administrar'],
+    ['POST','/api/v1/ambitos','AmbitoAccesoController','crear','usuarios.cuenta.administrar'],
+    ['DELETE','/api/v1/ambitos/(?P<id>\d+)','AmbitoAccesoController','revocar','usuarios.cuenta.administrar'],
+    ['GET','/api/v1/politicas-institucionales','PoliticaInstitucionalController','listar','usuarios.cuenta.administrar'],
+    ['PATCH','/api/v1/politicas-institucionales','PoliticaInstitucionalController','actualizar','usuarios.cuenta.administrar'],
     ['GET','/api/v1/sedes','SedeController','listar','activos.ficha.leer'],
     ['POST','/api/v1/sedes','SedeController','crear','usuarios.cuenta.administrar'],
     ['GET','/api/v1/dependencias','DependenciaController','listar','activos.ficha.leer'],
@@ -158,6 +164,8 @@ $routes = [
     ['POST','/api/v1/activos/(?P<id>\d+)/mantenimientos','MantenimientoController','crear','activos.ficha.actualizar'],
     ['POST','/api/v1/inventarios','InventarioController','crear','inventarios.jornada.crear'],
     ['GET','/api/v1/inventarios/(?P<id>\d+)','InventarioController','mostrar','inventarios.jornada.crear'],
+    ['GET','/api/v1/inventarios/(?P<id>\d+)/conciliacion','InventarioController','conciliar','reportes.informe.exportar'],
+    ['GET','/api/v1/historial-operaciones','HistorialOperacionesController','listar','activos.ficha.leer'],
     ['POST','/api/v1/inventarios/(?P<id>\d+)/iniciar','InventarioController','iniciar','inventarios.jornada.crear'],
     ['POST','/api/v1/inventarios/(?P<id>\d+)/detalles','InventarioDetalleController','crear','inventarios.detalle.verificar'],
     ['POST','/api/v1/inventarios/(?P<id>\d+)/detalles/(?P<detalleId>\d+)/diferencias','DiferenciaInventarioController','crear','inventarios.detalle.verificar'],
@@ -177,11 +185,19 @@ $routes = [
     ['PATCH','/api/v1/documentos-postulacion/(?P<id>\\d+)/revision','DocumentoPostulacionController','revisar','seleccion.postulacion.revisar'],
     ['GET','/api/v1/documentos-postulacion/(?P<id>\\d+)','DocumentoPostulacionController','descargar','seleccion.proceso.leer'],
     ['POST','/api/v1/documentos','DocumentoController','subir','activos.ficha.actualizar'],
+    ['GET','/api/v1/documentos','DocumentoController','listar','activos.ficha.leer'],
     ['GET','/api/v1/documentos/(?P<id>\d+)','DocumentoController','descargar','activos.ficha.leer'],
+    ['POST','/api/v1/actas','ActaController','crear','activos.ficha.actualizar'],
+    ['GET','/api/v1/actas','ActaController','listar','activos.ficha.leer'],
+    ['GET','/api/v1/base-institucional','PlanillaImportacionController','baseInstitucional','activos.ficha.leer'],
+    ['GET','/api/v1/base-institucional/(?P<fila>\\d+)','PlanillaImportacionController','baseInstitucionalDetalle','activos.ficha.leer'],
     ['POST','/api/v1/importaciones','ImportacionController','crear','reportes.informe.exportar'],
     ['GET','/api/v1/importaciones/(?P<id>\d+)','ImportacionController','mostrar','reportes.informe.exportar'],
     ['POST','/api/v1/importaciones-planilla','PlanillaImportacionController','crear','reportes.informe.exportar'],
     ['GET','/api/v1/importaciones-planilla/(?P<id>\d+)','PlanillaImportacionController','mostrar','reportes.informe.exportar'],
+    ['GET','/api/v1/importaciones-planilla/(?P<id>\d+)/opciones','PlanillaImportacionController','opcionesConversion','reportes.informe.exportar'],
+    ['POST','/api/v1/importaciones-planilla/(?P<id>\d+)/previsualizar','PlanillaImportacionController','previsualizarConversion','reportes.informe.exportar'],
+    ['POST','/api/v1/importaciones-planilla/(?P<id>\d+)/convertir','PlanillaImportacionController','convertir','reportes.informe.exportar'],
     ['GET','/api/v1/auditoria','AuditoriaController','listar','usuarios.cuenta.administrar'],
 ];
 

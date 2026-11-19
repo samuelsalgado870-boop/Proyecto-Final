@@ -50,7 +50,8 @@ final class SolicitudTrasladoController extends ApiController
         $body = $this->body();
         $decision = $this->requiredString($body, 'decision', 20);
         if (!in_array($decision, ['APROBADA','RECHAZADA'], true)) throw new ApiException(400, 'DECISION_INVALID', 'La decisión debe ser APROBADA o RECHAZADA.');
-        $ok = (new SolicitudTrasladoDAO($this->pdo))->resolver($id, $this->currentUserId(), $decision, $this->optionalString($body, 'observacion', 2000));
+        try { $ok = (new SolicitudTrasladoDAO($this->pdo))->resolver($id, $this->currentUserId(), $decision, $this->optionalString($body, 'observacion', 2000)); }
+        catch (\DomainException $error) { throw new ApiException(403, 'SELF_APPROVAL_FORBIDDEN', $error->getMessage()); }
         if (!$ok) $this->conflict('La solicitud no existe o ya fue resuelta.');
         $this->respond((new SolicitudTrasladoDAO($this->pdo))->buscarPorId($id));
     }

@@ -20,7 +20,8 @@ final class ActivoVO implements JsonSerializable
         private string $estado,
         private int $ubicacion_id,
         private int $dependencia_id,
-        private \DateTimeImmutable $creado_en
+        private \DateTimeImmutable $creado_en,
+        private string $estado_validacion = 'PENDIENTE'
     ) {
 
     }
@@ -100,6 +101,7 @@ final class ActivoVO implements JsonSerializable
             'ubicacion_id' => $this->ubicacion_id,
             'dependencia_id' => $this->dependencia_id,
             'creado_en' => $this->creado_en,
+            'estado_validacion' => $this->estado_validacion,
         ];
     }
 }

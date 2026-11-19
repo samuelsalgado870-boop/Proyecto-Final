@@ -6,6 +6,23 @@ namespace App\Model\DAO;
 
 final class AutorizacionDAO extends AbstractDAO
 {
+    /** Query fragment limiting rows to the caller's explicit institutional scope. */
+    public function scopePredicate(string $alias): array
+    {
+        if (!preg_match('/^[a-z][a-z0-9_]*$/i', $alias)) throw new \InvalidArgumentException('Alias SQL inválido.');
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        return [
+            'sql' => "EXISTS (SELECT 1 FROM ambito_acceso aa WHERE aa.usuario_id=:scope_usuario "
+                . 'AND (aa.vigente_desde IS NULL OR aa.vigente_desde<=CURRENT_DATE) '
+                . 'AND (aa.vigente_hasta IS NULL OR aa.vigente_hasta>=CURRENT_DATE) '
+                . "AND (aa.tipo_ambito='GLOBAL' OR (aa.tipo_ambito='SEDE' AND aa.sede_id={$alias}.sede_id) "
+                . "OR (aa.tipo_ambito='DEPENDENCIA' AND aa.dependencia_id={$alias}.dependencia_id) "
+                . "OR (aa.tipo_ambito='UBICACION' AND aa.ubicacion_id={$alias}.ubicacion_id) "
+                . "OR (aa.tipo_ambito='CUSTODIA' AND {$alias}.activo_id IS NOT NULL AND EXISTS (SELECT 1 FROM asignacion acs WHERE acs.activo_id={$alias}.activo_id AND acs.custodio_id=:scope_custodio AND acs.fecha_fin IS NULL))))",
+            'params' => ['scope_usuario'=>$userId,'scope_custodio'=>$userId],
+        ];
+    }
+
     public function tienePermiso(int $usuarioId, string $modulo, string $recurso, string $accion): bool
     {
         $stmt = $this->pdo->prepare(

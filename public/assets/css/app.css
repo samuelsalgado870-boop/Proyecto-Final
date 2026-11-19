@@ -337,6 +337,16 @@ img, svg { max-width: 100%; }
 .dashboard-action--forest { color: #387d69; border-color: #8db9a6; }
 .dashboard-action--blue { color: #469bad; border-color: #8fcbd1; }
 .dashboard-assets { margin-top: 0; }
+.dashboard-chart-panel { padding: 0 20px 20px; overflow: hidden; border-color: #e3ebe4; border-radius: 16px; box-shadow: 0 8px 24px rgba(27,65,38,.055); }
+.dashboard-chart-panel .panel-heading { min-height: 58px; margin: 0 -20px 16px; padding: 0 20px; background: linear-gradient(90deg, #f7faf6, #fff); border-bottom: 1px solid #edf1ed; }
+.dashboard-chart-panel .panel-heading h2 { color: #1c3022; font-size: 18px; }
+.dashboard-chart-rows { display: grid; gap: 13px; max-width: 900px; }
+.dashboard-chart-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(100px, 3fr) 70px; align-items: center; gap: 14px; }
+.dashboard-chart-label { overflow: hidden; color: #526157; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-chart-track { height: 13px; overflow: hidden; background: #edf2eb; border-radius: 99px; }
+.dashboard-chart-bar { display: block; height: 100%; min-width: 2px; background: #69a34a; border-radius: inherit; transition: width .35s ease; }
+.dashboard-chart-bar--1 { background: #4f8e68; }.dashboard-chart-bar--2 { background: #82ae43; }.dashboard-chart-bar--3 { background: #5f9fb0; }.dashboard-chart-bar--4 { background: #c59a42; }
+.dashboard-chart-value { color: #263d2d; font-size: 12px; text-align: right; }
 .dashboard-quick { padding: 0 20px 20px; overflow: hidden; border-color: #e3ebe4; border-radius: 16px; box-shadow: 0 8px 24px rgba(27,65,38,.055); }
 .dashboard-quick .panel-heading { min-height: 58px; margin: 0 -20px 17px; padding: 0 20px; background: linear-gradient(90deg, #f7faf6, #fff); border-bottom: 1px solid #edf1ed; }
 .dashboard-quick .panel-heading h2 { color: #1c3022; font-size: 18px; letter-spacing: -.025em; }
@@ -364,6 +374,9 @@ img, svg { max-width: 100%; }
     .dashboard-action-grid { grid-template-columns: 1fr; gap: 9px; }
     .dashboard-quick { padding: 0 14px 14px; }
     .dashboard-quick .panel-heading { margin-inline: -14px; padding-inline: 14px; }
+    .dashboard-chart-panel { padding: 0 14px 14px; }
+    .dashboard-chart-panel .panel-heading { margin-inline: -14px; padding-inline: 14px; }
+    .dashboard-chart-row { grid-template-columns: minmax(90px, 1fr) minmax(70px, 2fr) 55px; gap: 8px; }
 }
 @media (max-width: 420px) {
     .dashboard-page .welcome-banner { align-items: flex-start; }

@@ -4,7 +4,7 @@
 
 Se revisaron las seis hojas del Excel de requisitos. Este documento consolida el alcance funcional y una propuesta de modelo relacional para orientar la implementación. Los RF-001 a RF-028 aparecen como obligatorios en la fuente; varias reglas y decisiones siguen pendientes de validación institucional. El modelo queda sujeto a aprobación de CECAR.
 
-La propuesta no implica que el esquema SQL haya sido generado, validado contra una instancia ni ejecutado. `database/01_schema.sql` es un artefacto existente del proyecto y debe revisarse frente a este documento antes de considerarlo aprobado.
+La propuesta no implica que el esquema SQL haya sido generado, validado contra una instancia ni ejecutado. `database/base/01_schema.sql` es un artefacto existente del proyecto y debe revisarse frente a este documento antes de considerarlo aprobado.
 
 ## Convenciones
 
@@ -140,4 +140,4 @@ El Excel marca los RF-001–028 como **Obligatorios**. La prioridad técnica pro
 
 ## Nota para implementación SQL
 
-`database/01_schema.sql` contiene instrucciones `DROP TABLE`, por lo que no debe ejecutarse sobre una base con datos que se quieran conservar. Tras aprobar este modelo, debe prepararse un script de creación reproducible para una base nueva, revisarse y probarse de forma controlada antes de cualquier ejecución local.
+`database/base/01_schema.sql` contiene instrucciones `DROP TABLE`, por lo que no debe ejecutarse sobre una base con datos que se quieran conservar. Tras aprobar este modelo, debe prepararse un script de creación reproducible para una base nueva, revisarse y probarse de forma controlada antes de cualquier ejecución local.

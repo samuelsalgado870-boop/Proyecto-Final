@@ -1,4 +1,4 @@
-s# Proyecto
+# Proyecto
 
 Esqueleto inicial de una aplicacion PHP con arquitectura MVC y patrones DAO/VO.
 
@@ -16,9 +16,9 @@ Esqueleto inicial de una aplicacion PHP con arquitectura MVC y patrones DAO/VO.
 La matriz de rutas y contratos API implementados estÃ¡ en [docs/rutas.md](docs/rutas.md).
 
 ## Ejecucion local
-Inicia MySQL en XAMPP e importa `database/01_schema.sql` desde phpMyAdmin o con el cliente MySQL. El script crea la base `gestion_activos` y sus tablas; no elimina tablas existentes. Después, importa `database/02_seed.sql` para cargar datos ficticios de prueba. El seed usa IDs del rango 9001–9999 y no borra datos; ejecútalo una sola vez en una base vacía o de pruebas. El seed y la cuenta de demostración son solo para desarrollo/pruebas y nunca deben cargarse en producción.
+Inicia MySQL en XAMPP e importa `database/base/01_schema.sql` desde phpMyAdmin o con el cliente MySQL. El script crea la base `gestion_activos` y sus tablas; no elimina tablas existentes. Si necesitas datos ficticios para una demostración, importa después `database/datos-prueba/02_seed.sql`. El seed usa IDs del rango 9001–9999 y no borra datos; ejecútalo una sola vez en una base vacía o de pruebas. El seed y la cuenta de demostración son solo para desarrollo/pruebas y nunca deben cargarse en producción.
 
-Para reiniciar **solo la base de pruebas**, confirma primero que seleccionaste `gestion_activos` y que no contiene información que necesites. En phpMyAdmin, elimina esa base, vuelve a importar primero `database/01_schema.sql` y luego `database/02_seed.sql`. Esta operación borra todos los datos de esa base; no la uses en una base con información que quieras conservar.
+Para reiniciar **solo la base de pruebas**, confirma primero que seleccionaste `gestion_activos` y que no contiene información que necesites. En phpMyAdmin, elimina esa base, vuelve a importar primero `database/base/01_schema.sql` y luego `database/datos-prueba/02_seed.sql`. Esta operación borra todos los datos de esa base; no la uses en una base con información que quieras conservar.
 
 Luego sirve el directorio `public/` como raíz web con Apache o el servidor integrado de PHP.
 En XAMPP, para cualquier despliegue fuera de pruebas, configura Apache para que el `DocumentRoot` apunte a `Proyecto_Final/public`; no publiques la raíz del proyecto.
@@ -48,9 +48,13 @@ La API usa rutas REST bajo `/api/v1`; Apache reescribe las solicitudes con `publ
 
 ### Importar la planilla institucional de activos
 
-La carga XLSX conserva las filas fuente de la hoja `Lectura`, incluidas las filas sin placa y las placas repetidas. Antes de cargarla, importa una vez `database/04_planilla_activos_origen.sql` en la base configurada. Luego abre **Reportes y archivos > Importar base XLSX** e inicia la carga desde la aplicación. Se requiere PHP con las extensiones `zip` y `simplexml`; para archivos grandes, configura `upload_max_filesize=100M`, `post_max_size=110M`, `max_execution_time=300` y `max_input_time=300` en el `php.ini` de Apache y reinicia Apache.
+La planilla oficial cargada es la fuente que consultan los módulos **Activos** y **Reportes**; muestran sus valores originales sin convertirlos en categorías, asignaciones o estados operativos. Activos permite recorrer todas las filas y Reportes buscar y exportar hasta 500 coincidencias. La carga XLSX conserva todas las filas de `Lectura`, incluidas placas vacías y repetidas. Para cargar una nueva planilla, importa `database/migraciones/04_planilla_activos_origen.sql` y `database/migraciones/07_planilla_hash.sql` en la base configurada; la columna `Categoria` es opcional y no se infiere del lote o la descripción. La migración `database/migraciones/06_planilla_activos_categoria_origen.sql` solo hace falta si el archivo trae categorías para conservar o convertir. Luego abre **Reportes y archivos > Importar base XLSX**. El hash evita importar el mismo archivo más de una vez. Se requiere PHP con las extensiones `zip` y `simplexml`; para archivos grandes, configura `upload_max_filesize=100M`, `post_max_size=110M`, `max_execution_time=300` y `max_input_time=300` en el `php.ini` de Apache y reinicia Apache.
 
-La planilla se conserva como fuente para revisión; el sistema no convierte automáticamente sus nombres de centro de costo, ubicación, estados ni responsables en relaciones operativas. Las placas vacías y repetidas se identifican por fila para su conciliación.
+Para convertir filas en activos operativos se requieren las migraciones `database/migraciones/05_planilla_activos_conversion.sql` y `database/migraciones/06_planilla_activos_categoria_origen.sql`, además del mapeo de categoría por fila, centro de costo, ubicación y estado. Revisa la vista previa antes de confirmar. Se omiten de la conversión las placas vacías, repetidas o ya registradas y las filas incompletas; todas permanecen en la fuente para consulta. El permiso requerido es `activos.ficha.crear`. Los responsables permanecen como datos fuente y no se crean asignaciones automáticamente. La planilla real sin categoría puede cargarse íntegramente como fuente, pero no convertirse hasta completar ese dato.
+
+### Catálogos de sedes, dependencias y ubicaciones
+
+Para cargar las tres sedes confirmadas de CECAR y habilitar las opciones de dependencias y ubicaciones con los valores de la planilla, ejecuta `database/migraciones/08_sedes_cecar.sql` y luego `database/migraciones/09_catalogos_desde_planilla.sql`. El segundo script conserva los nombres fuente; solo asigna sede cuando el texto de origen permite identificarla. Las demás ubicaciones se muestran como pendientes de confirmar sede. Para copiar los registros con placa única a la tabla operativa `activo`, ejecuta `database/migraciones/10_cargar_activos_planilla.sql`; usa una categoría explícita «Sin clasificar», deja su estado en `REGISTRADO` y excluye placas repetidas o vacías, que permanecen en la fuente.
 
 ### Vistas
 
@@ -60,4 +64,8 @@ Las vistas del portal y la aplicación están en `view/`; los estilos y la integ
 
 ## Extensión de Procesos de selección
 
-La migración opcional database/03_seleccion.sql agrega tablas y permisos para el módulo, sin borrar ni alterar las tablas de activos. Consulta [docs/migracion-seleccion.md](docs/migracion-seleccion.md) antes de importarla en phpMyAdmin. El módulo ya tiene endpoints y DAO; importa la migración antes de usarlo y asigna sus permisos solo al personal autorizado.
+La migración opcional `database/migraciones/03_seleccion.sql` agrega tablas y permisos para el módulo, sin borrar ni alterar las tablas de activos. Consulta [docs/migracion-seleccion.md](docs/migracion-seleccion.md) antes de importarla en phpMyAdmin. El módulo ya tiene endpoints y DAO; importa la migración antes de usarlo y asigna sus permisos solo al personal autorizado.
+
+### Funciones CECAR
+
+Las funciones institucionales anadidas, migraciones y decisiones pendientes se documentan en [docs/implementacion-cecar.md](docs/implementacion-cecar.md).

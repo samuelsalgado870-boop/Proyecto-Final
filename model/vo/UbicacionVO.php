@@ -10,7 +10,7 @@ final class UbicacionVO implements JsonSerializable
 {
     public function __construct(
         private int $id,
-        private int $sede_id,
+        private ?int $sede_id,
         private ?int $dependencia_id,
         private string $codigo,
         private string $nombre,
@@ -26,7 +26,7 @@ final class UbicacionVO implements JsonSerializable
         return $this->id;
     }
 
-    public function getSedeId(): int
+    public function getSedeId(): ?int
     {
         return $this->sede_id;
     }

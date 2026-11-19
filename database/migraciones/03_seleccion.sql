@@ -1,5 +1,5 @@
 -- Extension non-destructive for the selection-process module.
--- Import after database/01_schema.sql and database/02_seed.sql.
+-- Import after database/base/01_schema.sql and, optionally, database/datos-prueba/02_seed.sql.
 -- MySQL 8.0.16+ is required for enforced CHECK constraints.
 -- Does not drop, truncate, or alter the existing asset-management tables.
 USE gestion_activos;

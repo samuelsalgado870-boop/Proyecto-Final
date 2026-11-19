@@ -1,5 +1,5 @@
 -- Almacenamiento fiel de filas provenientes de la planilla institucional.
--- Importar una sola vez después de database/01_schema.sql. No modifica activos.
+-- Importar una sola vez después de database/base/01_schema.sql. No modifica activos.
 USE gestion_activos;
 
 CREATE TABLE IF NOT EXISTS fila_planilla_activo (
